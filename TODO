@@ -1,0 +1,3 @@
+swapinterval -1
+gpu startup failure crashes (can we bind LWJGL to a noop impl early?)
+check caps (gl4 avail?)
