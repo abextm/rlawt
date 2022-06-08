@@ -46,7 +46,7 @@ public final class AWTContext
 	}
 
 	public native void configureInsets(int x, int y);
-	public native void configurePixelFormat(int red, int green, int blue, int alpha, int depth, int stencil);
+	public native void configurePixelFormat(int alpha, int depth, int stencil);
 	public native void configureMultisamples(int samples);
 
 	public native void destroy();
@@ -59,4 +59,10 @@ public final class AWTContext
 	public native void detachCurrent();
 
 	public native void swapBuffers();
+
+	public native long getGLContext();
+
+	public native long getCGLShareGroup();
+	public native long getGLXDisplay();
+	public native long getWGLHDC();
 }

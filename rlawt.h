@@ -52,6 +52,7 @@ typedef struct {
 	bool contextCreated;
 
 #ifdef __APPLE__
+	bool needsAttachSurface;
 	CALayer *layer;
 	IOSurfaceRef back;
 	CGLContextObj context;
@@ -76,14 +77,10 @@ typedef struct {
 #ifdef _WIN32
 	JAWT_DrawingSurfaceInfo *dsi;
 	JAWT_Win32DrawingSurfaceInfo *dspi;
-	HGLRC glrc;
+	HGLRC context;
 	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 	bool wglSwapControlTear;
 #endif
-
-	int redDepth;//TODO: remove; no mac support
-	int greenDepth;
-	int blueDepth;
 
 	int alphaDepth;
 	int depthDepth;

@@ -113,9 +113,9 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 			GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT, // JAWT never hands out a pixmap
 			GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
 			GLX_X_RENDERABLE, true,
-			GLX_RED_SIZE, ctx->redDepth,
-			GLX_GREEN_SIZE, ctx->greenDepth,
-			GLX_BLUE_SIZE, ctx->blueDepth,
+			GLX_RED_SIZE, 8,
+			GLX_GREEN_SIZE, 8,
+			GLX_BLUE_SIZE, 8,
 			GLX_ALPHA_SIZE, ctx->alphaDepth,
 			GLX_DEPTH_SIZE, ctx->depthDepth,
 			GLX_STENCIL_SIZE, ctx->stencilDepth,
@@ -206,9 +206,11 @@ unlock:
 }
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
-	glXMakeCurrent(ctx->dpy, None, None);
-	glXDestroyContext(ctx->dpy, ctx->context);
-	XCloseDisplay(ctx->dpy);
+	if (ctx->contextCreated) {
+		glXMakeCurrent(ctx->dpy, None, None);
+		glXDestroyContext(ctx->dpy, ctx->context);
+		XCloseDisplay(ctx->dpy);
+	}
 }
 
 JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_setSwapInterval(JNIEnv *env, jobject self, jint interval) {

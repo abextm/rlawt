@@ -115,15 +115,12 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configureInsets(JNIEnv
 	#endif
 }
 
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configurePixelFormat(JNIEnv *env, jobject self, jint red, jint green, jint blue, jint alpha, jint depth, jint stencil) {
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configurePixelFormat(JNIEnv *env, jobject self, jint alpha, jint depth, jint stencil) {
 	AWTContext *ctx = rlawtGetContext(env, self);
 	if (!ctx || !rlawtContextState(env, ctx, false)) {
 		return;
 	}
 
-	ctx->redDepth = red;
-	ctx->greenDepth = green;
-	ctx->blueDepth = blue;
 	ctx->alphaDepth = alpha;
 	ctx->depthDepth = depth;
 	ctx->stencilDepth = stencil;
@@ -136,4 +133,55 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configureMultisamples(
 	}
 
 	ctx->multisamples = samples;
+}
+
+JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getGLContext(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+	return (jlong) ctx->context;
+}
+
+JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getCGLShareGroup(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+#ifdef __APPLE__
+	return (jlong) CGLGetShareGroup(ctx->context);
+#else
+	rlawtThrow(env, "not supported");
+	return 0;
+#endif
+}
+
+JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getGLXDisplay(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+#ifdef __unix__
+	return (jlong) ctx->dpy;
+#else
+	rlawtThrow(env, "not supported");
+	return 0;
+#endif
+}
+
+JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getWGLHDC(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+#ifdef _WIN32
+	return (jlong) ctx->dspi->hdc;
+#else
+	rlawtThrow(env, "not supported");
+	return 0;
+#endif
 }

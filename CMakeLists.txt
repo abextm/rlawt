@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.10)
-project(rlawt)
+cmake_minimum_required(VERSION 3.15)
+project(rlawt C)
+
+set(CMAKE_C_STANDARD 11)
 
 find_package(Java 1.8 REQUIRED)
 include(UseJava)
@@ -23,6 +25,7 @@ endif()
 
 if (WIN32)
 	include_directories(include/windows)
+	set_property(TARGET rlawt PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded") # multi-threaded statically-linked runtime
 	target_link_libraries(rlawt opengl32)
 elseif (APPLE)
 	target_sources(rlawt PRIVATE rlawt_mac.m)
@@ -32,8 +35,6 @@ elseif (APPLE)
 	find_library(OPENGL OpenGL)
 	find_library(APPKIT AppKit)
 	set_property(SOURCE rlawt.c APPEND PROPERTY COMPILE_OPTIONS -x objective-c)
-	#arget_link_libraries(rlawt "-framework Cocoa -framework OpenGL -framework QuartzCore")
-	#target_link_libraries(rlawt jawt)
 	target_link_libraries(rlawt ${CORE_FOUNDATION} ${QUARTZ_CORE} ${IO_SURFACE} ${OPENGL} ${APPKIT})
 elseif (UNIX)
 	target_link_libraries(rlawt GL GLX)

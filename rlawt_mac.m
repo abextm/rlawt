@@ -28,8 +28,7 @@
 #include "rlawt.h"
 #include <jawt_md.h>
 #include <OpenGL/gl3.h>
-
-#include <AppKit/NSColor.h>
+#include <QuartzCore/QuartzCore.h>
 
 @protocol CanSetContentsChanged
 -(void)setContentsChanged;
@@ -70,6 +69,59 @@ static void propsPutInt(CFMutableDictionaryRef props, const CFStringRef key, int
 	CFNumberRef boxedValue = CFNumberCreate(NULL, kCFNumberIntType, &value);
 	CFDictionaryAddValue(props, key, boxedValue);
 	CFRelease(boxedValue);
+}
+
+static bool rlawtCreateIOSurface(JNIEnv *env, AWTContext *ctx) {
+	CFMutableDictionaryRef props = CFDictionaryCreateMutable(NULL, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	CGSize size = ctx->layer.frame.size;
+	propsPutInt(props, kIOSurfaceHeight, size.height);
+	propsPutInt(props, kIOSurfaceWidth, size.width);
+	propsPutInt(props, kIOSurfaceBytesPerElement, 4);
+	propsPutInt(props, kIOSurfacePixelFormat, (int)'BGRA');
+
+	IOSurfaceRef back = IOSurfaceCreate(props);
+	CFRelease(props);
+	if (!back) {
+		rlawtThrow(env, "unable to create io surface");
+		return false;
+	}
+	
+	const GLuint target = GL_TEXTURE_RECTANGLE;
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(target, ctx->tex);
+	CGLError err = CGLTexImageIOSurface2D(
+		ctx->context,
+		target, GL_RGBA,
+		size.width, size.height,
+		GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+		back, 
+		0);
+	glBindTexture(target, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, ctx->tex, 0);
+
+	if (err != kCGLNoError) {
+		rlawtThrowCGLError(env, "unable to bind io surface to texture", err);
+		goto freeSurface;
+	}
+
+	int fbStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (fbStatus != GL_FRAMEBUFFER_COMPLETE) {
+		char buf[256] = {0};
+		snprintf(buf, sizeof(buf), "unable to create fb (%d)", fbStatus);
+		rlawtThrow(env, buf);
+		goto freeSurface;
+	}
+
+	if (ctx->back) {
+		CFRelease(ctx->back);
+	}
+	ctx->back = back;
+	ctx->needsAttachSurface = true;
+	return true;
+freeSurface:
+	CFRelease(back);
+	return false;
 }
 
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv *env, jobject self) {
@@ -121,51 +173,8 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto freeContext;
 	}
 
-	{
-		CFMutableDictionaryRef props = CFDictionaryCreateMutable(NULL, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-		propsPutInt(props, kIOSurfaceHeight, dsi->bounds.height);
-		propsPutInt(props, kIOSurfaceWidth, dsi->bounds.width);
-		propsPutInt(props, kIOSurfaceBytesPerElement, 4);
-		propsPutInt(props, kIOSurfacePixelFormat, (int)'BGRA');
-
-		ctx->back = IOSurfaceCreate(props);
-		CFRelease(props);
-		if (!ctx->back) {
-			rlawtThrow(env, "unable to create io surface");
-			goto freeContext;
-		}
-	}
-
 	glGenTextures(1, &ctx->tex);
 	glGenFramebuffers(1, &ctx->fbo);
-	{
-		const GLuint target = GL_TEXTURE_RECTANGLE;
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(target, ctx->tex);
-		err = CGLTexImageIOSurface2D(
-			ctx->context,
-			target, GL_RGBA,
-			dsi->bounds.width, dsi->bounds.height,
-			GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
-			ctx->back, 
-			0);
-		glBindTexture(target, 0);
-		glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, ctx->tex, 0);
-
-		if (err != kCGLNoError) {
-			rlawtThrowCGLError(env, "unable to bind io surface to texture", err);
-			goto freeDSI;
-		}
-
-		int fbStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (fbStatus != GL_FRAMEBUFFER_COMPLETE) {
-			char buf[256] = {0};
-			snprintf(buf, sizeof(buf), "unable to create fb (%d)", fbStatus);
-			rlawtThrow(env, buf);
-			goto freeDSI;
-		}
-	}
 
 	{
 		jclass clazz = (*env)->GetObjectClass(env, self);
@@ -175,20 +184,27 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		}
 		(*env)->SetIntField(env, self, fboID, ctx->fbo);
 	}
-dispatch_sync(dispatch_get_main_queue(), ^{
-	ctx->layer = [[RLLayer alloc] init];
-	dspi.layer = ctx->layer;
-	ctx->layer.opaque = true;
-	ctx->layer.affineTransform = CGAffineTransformMakeScale(1, -1);
-	ctx->layer.frame = CGRectMake(
-		dsi->bounds.x - ctx->offsetX,
-		dspi.windowLayer.bounds.size.height - (dsi->bounds.y - ctx->offsetY) - dsi->bounds.height,
-		dsi->bounds.width,
-		dsi->bounds.height);
 
-	[ctx->layer setContents: (id) ctx->back];
-	[ctx->layer setContentsScale: 1.0];
-});
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		RLLayer *layer = [[RLLayer alloc] init];
+		layer.opaque = true;
+		layer.needsDisplayOnBoundsChange = false;
+		layer.contentsGravity = kCAGravityCenter;
+		layer.affineTransform = CGAffineTransformMakeScale(1, -1);
+
+		layer.frame = CGRectMake(
+			dsi->bounds.x - ctx->offsetX,
+			dspi.windowLayer.bounds.size.height - (dsi->bounds.y - ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+			dsi->bounds.width,
+			dsi->bounds.height);
+
+		ctx->layer = layer;
+		dspi.layer = layer;
+	});
+
+	if (!rlawtCreateIOSurface(env, ctx)) {
+		goto freeContext;
+	}
 
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
 
@@ -202,6 +218,19 @@ freeDSI:
 }
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
+	CGLSetCurrentContext(NULL);
+	if (ctx->context) {
+		CGLDestroyContext(ctx->context);
+	}
+	if (ctx->back) {
+		CFRelease(ctx->back);
+	}
+	if (ctx->layer) {
+		dispatch_sync(dispatch_get_main_queue(), ^{
+			[ctx->layer removeFromSuperlayer];
+			[ctx->layer release];
+		});
+	}
 }
 
 JNIEXPORT int JNICALL Java_net_runelite_rlawt_AWTContext_setSwapInterval(JNIEnv *env, jobject self, jint interval) {
@@ -232,12 +261,23 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *en
 		return;
 	}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo);
 	glFlush();
 	dispatch_sync(dispatch_get_main_queue(), ^{
+		[CATransaction begin];
+		[CATransaction setDisableActions: true];
+		if (ctx->needsAttachSurface) {
+			ctx->layer.contents = (id) ctx->back;
+			ctx->needsAttachSurface = false;
+		}
 		[(id<CanSetContentsChanged>)ctx->layer setContentsChanged];
+		[CATransaction commit];
 	});
+
+	if (IOSurfaceGetWidth(ctx->back) != ctx->layer.frame.size.width || IOSurfaceGetHeight(ctx->back) != ctx->layer.frame.size.height) {
+		if (!rlawtCreateIOSurface(env, ctx)) {
+			return;
+		}
+	}
 }
 
 #endif

@@ -45,8 +45,8 @@ void rlawtThrow(JNIEnv *env, const char *msg) {
 	}
 }
 
-static bool makeCurrent(JNIEnv *env, HDC dc, HGLRC glrc) {
-	if (!wglMakeCurrent(dc, glrc)) {
+static bool makeCurrent(JNIEnv *env, HDC dc, HGLRC context) {
+	if (!wglMakeCurrent(dc, context)) {
 		rlawtThrow(env, "unable to make current");
 		return false;
 	}
@@ -84,10 +84,10 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	pfd.nVersion = 1;
 	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
 	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.cColorBits = ctx->redDepth + ctx->greenDepth + ctx->blueDepth;
-	pfd.cRedBits = ctx->redDepth;
-	pfd.cBlueBits = ctx->blueDepth;
-	pfd.cGreenBits = ctx->greenDepth;
+	pfd.cColorBits = 24;
+	pfd.cRedBits = 8;
+	pfd.cBlueBits = 8;
+	pfd.cGreenBits = 8;
 	pfd.cAlphaBits = ctx->alphaDepth;
 	pfd.cDepthBits = ctx->depthDepth;
 	pfd.cStencilBits = ctx->stencilDepth;
@@ -107,13 +107,13 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto unlock;
 	}
 
-	ctx->glrc = wglCreateContext(ctx->dspi->hdc);
-	if (!ctx->glrc) {
+	ctx->context = wglCreateContext(ctx->dspi->hdc);
+	if (!ctx->context) {
 		rlawtThrow(env, "unable to create context");
 		goto unlock;
 	}
 
-	if (!makeCurrent(env, ctx->dspi->hdc, ctx->glrc)) {
+	if (!makeCurrent(env, ctx->dspi->hdc, ctx->context)) {
 		goto freeContext;
 	}
 
@@ -133,7 +133,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	return;
 
 freeContext:
-	wglDeleteContext(ctx->glrc);
+	wglDeleteContext(ctx->context);
 unlock:
 	jthrowable exception = (*env)->ExceptionOccurred(env);
 	ctx->ds->Unlock(ctx->ds);
@@ -143,6 +143,9 @@ unlock:
 }
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
+	if (ctx->context) {
+		wglDeleteContext(ctx->context);
+	}
 	if (ctx->dsi) {
 		ctx->ds->FreeDrawingSurfaceInfo(ctx->dsi);
 	}
@@ -176,7 +179,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_makeCurrent(JNIEnv *en
 		return;
 	}
 
-	makeCurrent(env, ctx->dspi->hdc, ctx->glrc);
+	makeCurrent(env, ctx->dspi->hdc, ctx->context);
 }
 
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_detachCurrent(JNIEnv *env, jobject self) {
