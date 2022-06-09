@@ -52,13 +52,13 @@ typedef struct {
 	bool contextCreated;
 
 #ifdef __APPLE__
-	bool needsAttachSurface;
 	CALayer *layer;
-	IOSurfaceRef back;
+	IOSurfaceRef buffer[2];
 	CGLContextObj context;
 
-	GLuint tex;
-	GLuint fbo;
+	GLuint tex[2];
+	GLuint fbo[2];
+	int back;
 
 	int offsetX;
 	int offsetY;

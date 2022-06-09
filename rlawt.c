@@ -185,3 +185,14 @@ JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getWGLHDC(JNIEnv *env
 	return 0;
 #endif
 }
+
+#ifndef __APPLE__
+JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_getFramebuffer(JNIEnv *env, jobject self, jboolean front) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+	return 0;
+}
+#endif

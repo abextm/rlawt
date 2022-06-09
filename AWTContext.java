@@ -32,9 +32,6 @@ public final class AWTContext
 	@Native
 	private long instance;
 
-	@Native
-	private int framebuffer;
-
 	private static native long create0(Component component);
 	public AWTContext(Component component)
 	{
@@ -48,6 +45,8 @@ public final class AWTContext
 	public native void configureInsets(int x, int y);
 	public native void configurePixelFormat(int alpha, int depth, int stencil);
 	public native void configureMultisamples(int samples);
+
+	public native int getFramebuffer(boolean front);
 
 	public native void destroy();
 
