@@ -188,8 +188,9 @@ freeContext:
 freeDisplay:
 	XSync(ctx->dpy, false);
 	XCloseDisplay(ctx->dpy);
+	jthrowable exception;
 freeDSI:
-	jthrowable exception = (*env)->ExceptionOccurred(env);
+	exception = (*env)->ExceptionOccurred(env);
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
 	if (exception) {
 		(*env)->Throw(env, exception);
