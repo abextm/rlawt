@@ -11,6 +11,7 @@ unset(CMAKE_FIND_FRAMEWORK)
 
 set(CMAKE_SKIP_RPATH TRUE)
 
+set(CMAKE_JAVA_COMPILE_FLAGS "-source" "1.8" "-target" "1.8")
 add_jar(jar AWTContext.java GENERATE_NATIVE_HEADERS rlawt-headers)
 
 add_library(rlawt SHARED rlawt.c rlawt_nix.c rlawt_windows.c)
