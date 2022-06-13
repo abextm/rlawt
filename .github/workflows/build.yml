@@ -2,6 +2,7 @@ on:
   push:
 jobs:
   linux-amd64:
+    if: false
     runs-on: ubuntu-20.04
     container:
       image: amd64/centos:7.9.2009
@@ -22,6 +23,28 @@ jobs:
         cd build/linux-amd64
         ../../cmake/bin/cmake ../../
         ../../cmake/bin/cmake --build . --config Release
+    - uses: actions/upload-artifact@v3
+      with:
+        name: linux-amd64
+        path: build/linux-amd64/librlawt.so
+        retention-days: 1
+        if-no-files-found: error
+  windows:
+    run-on: windows-2022
+    steps:
+    - uses: actions/checkout@v3
+    - name: build windows-x86
+      run: |
+        mkdir -p build/windows-x86
+        cd build/windows-x86
+        cmake ../../ -A Win32
+        cmake --build . --config Release
+    - name: build windows-amd64
+      run: |
+        mkdir -p build/windows-amd64
+        cd build/windows-amd64
+        cmake ../../ -A Win64
+        cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
         name: linux-amd64
