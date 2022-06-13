@@ -70,7 +70,7 @@ jobs:
         set -e -x
         mkdir -p build/macos-arm64
         cd build/macos-arm64
-        cmake ../../ -DCMAKE_OSX_ARCHITECTURES=arm64 -DJAVA_JVM_LIBRARY=../../jdk-11.0.15+10/lib/server/libjvm.dylib -DJAVA_AWT_LIBRARY=../../jdk-11.0.15+10/lib/libjawt.dylib
+        cmake ../../ -DCMAKE_OSX_ARCHITECTURES=arm64 -DJAVA_JVM_LIBRARY=../../jdk-11.0.15+10/Contents/Home/lib/server/libjvm.dylib -DJAVA_AWT_LIBRARY=../../jdk-11.0.15+10/Contents/Home/lib/libjawt.dylib
         cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
