@@ -55,7 +55,7 @@ jobs:
         set -e -x
         mkdir -p build/windows-amd64
         cd build/windows-amd64
-        cmake ../../ -A Win64
+        cmake ../../
         cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
