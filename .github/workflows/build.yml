@@ -46,7 +46,8 @@ jobs:
         set -e -x
         mkdir -p build/windows-x86
         cd build/windows-x86
-        cmake ../../ -A Win32 -DJAVA_HOME=../../jdk-11.0.15+10/
+        # cmake isn't smart enough to find jawt of the correct arch
+        cmake ../../ -A Win32 -CMAKE_LIBRARY_PATH=../../jdk-11.0.15+10/
         cmake --build . --config Release
     - name: build windows-amd64
       shell: bash
@@ -58,8 +59,14 @@ jobs:
         cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
-        name: linux-amd64
-        path: build/linux-amd64/librlawt.so
+        name: windows-x86
+        path: build/windows-x86/Release/rlawt.dll
+        retention-days: 1
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v3
+      with:
+        name: windows-amd64
+        path: build/windows-amd64/Release/rlawt.dll
         retention-days: 1
         if-no-files-found: error
 
