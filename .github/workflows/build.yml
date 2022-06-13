@@ -47,7 +47,7 @@ jobs:
         mkdir -p build/windows-x86
         cd build/windows-x86
         # cmake isn't smart enough to find jawt of the correct arch
-        cmake ../../ -A Win32 -CMAKE_LIBRARY_PATH=../../jdk-11.0.15+10/
+        cmake ../../ -A Win32 -CMAKE_LIBRARY_PATH=../../jdk-11.0.15+10/ || echo CMakeFiles/CMakeOutput.log
         cmake --build . --config Release
     - name: build windows-amd64
       shell: bash
