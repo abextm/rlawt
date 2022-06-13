@@ -9,8 +9,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: install dependencies
       run: |
-        yum group install "Development Tools"
-        yum install cmake libX11-devel 
+        yum -y group install "Development Tools"
+        yum -y install cmake libX11-devel
     - name: build linux-amd64
       run: |
         set -e -x
