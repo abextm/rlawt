@@ -73,7 +73,7 @@ public final class AWTContext
 		{
 			if (is == null)
 			{
-				throw new RuntimeException("rlgl does not exist at " + path);
+				throw new RuntimeException("rlawt does not exist at " + path);
 			}
 
 			Path temp = Files.createTempFile("", name);
