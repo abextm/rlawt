@@ -7,6 +7,10 @@ jobs:
       image: amd64/centos:7.9.2009
     steps:
     - uses: actions/checkout@v3
+    - name: install dependencies
+      run: |
+        yum group install "Development Tools"
+        yum install cmake libX11-devel 
     - name: build linux-amd64
       run: |
         set -e -x
