@@ -38,7 +38,7 @@ jobs:
       run: |
         set -e -x
         curl -Lo jdk-11.0.15+10.zip 'https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.15%2B10/OpenJDK11U-jdk_x86-32_windows_hotspot_11.0.15_10.zip'
-        echo "c8aa33913b27bb09cc66342e567b3a1fe0f4b136569e57e713bd56ef540d4105  jdk.zip" | sha256sum -c
+        echo "c8aa33913b27bb09cc66342e567b3a1fe0f4b136569e57e713bd56ef540d4105  jdk-11.0.15+10.zip" | sha256sum -c
         unzip jdk-11.0.15+10.zip
     - name: build windows-x86
       shell: bash
