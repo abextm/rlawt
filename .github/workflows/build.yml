@@ -50,7 +50,7 @@ jobs:
       run: |
         set -e -x
         curl -Lo jdk-11.0.15+10.zip 'https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.15%2B10/OpenJDK11U-jdk_aarch64_mac_hotspot_11.0.15_10.tar.gz'
-        echo "e84143a6c633a26aeefcb1fd5ad8dfb9e952cfec2a1af5c9d9b69f2390990dac  jdk-11.0.15+10.zip" | sha256sum -c
+        echo "e84143a6c633a26aeefcb1fd5ad8dfb9e952cfec2a1af5c9d9b69f2390990dac  jdk-11.0.15+10.zip" | shasum -a 256 -c
         tar -xf jdk-11.0.15+10.zip
     - name: build macos-x86_64
       run: |
@@ -89,7 +89,7 @@ jobs:
       run: |
         set -e -x
         curl -Lo cmake-3.23.2-linux-x86_64.tar.gz 'https://github.com/Kitware/CMake/releases/download/v3.23.2/cmake-3.23.2-linux-x86_64.tar.gz'
-        echo "aaced6f745b86ce853661a595bdac6c5314a60f8181b6912a0a4920acfa32708  cmake-3.23.2-linux-x86_64.tar.gz" | shasum -a 256 -c
+        echo "aaced6f745b86ce853661a595bdac6c5314a60f8181b6912a0a4920acfa32708  cmake-3.23.2-linux-x86_64.tar.gz" | sha256sum -c
         tar -xf cmake-3.23.2-linux-x86_64.tar.gz
         mv cmake-3.23.2-linux-x86_64 cmake
         yum -y install libX11-devel mesa-libGL-devel java-11-openjdk-devel "@Development Tools"
