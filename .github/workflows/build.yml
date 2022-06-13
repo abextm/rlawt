@@ -21,8 +21,8 @@ jobs:
         set -e -x
         mkdir -p build/linux-amd64
         cd build/linux-amd64
-        cmake/bin/cmake ../../
-        cmake/bin/cmake --build . --config Release
+        ../../cmake/bin/cmake ../../
+        ../../cmake/bin/cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
         name: linux-amd64
