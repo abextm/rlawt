@@ -28,3 +28,4 @@ jobs:
         path: build/linux-amd64/librlawt.so
         retention-days: 1
         if-no-files-found: error
+
