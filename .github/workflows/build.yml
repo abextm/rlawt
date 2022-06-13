@@ -10,12 +10,12 @@ jobs:
     - name: install dependencies
       run: |
         set -e -x
-        yum -y group install "Development Tools"
-        yum -y install libX11-devel
-        curl -vo cmake-3.23.2-linux-x86_64.tar.gz 'https://github.com/Kitware/CMake/releases/download/v3.23.2/cmake-3.23.2-linux-x86_64.tar.gz'
+        curl -Lo cmake-3.23.2-linux-x86_64.tar.gz 'https://github.com/Kitware/CMake/releases/download/v3.23.2/cmake-3.23.2-linux-x86_64.tar.gz'
         echo "aaced6f745b86ce853661a595bdac6c5314a60f8181b6912a0a4920acfa32708  cmake-3.23.2-linux-x86_64.tar.gz" | sha256sum -c
         tar -xf cmake-3.23.2-linux-x86_64.tar.gz
         mv cmake-3.23.2-linux-x86_64.tar.gz/ cmake
+        yum -y group install "Development Tools"
+        yum -y install libX11-devel
     - name: build linux-amd64
       run: |
         set -e -x
