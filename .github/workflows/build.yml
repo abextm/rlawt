@@ -16,7 +16,7 @@ jobs:
         set -e -x
         mkdir -p build/linux-amd64
         cd build/linux-amd64
-        cmake -S ../../ -B .
+        cmake ../../
         cmake --build . --config Release
     - uses: actions/upload-artifact@v3
       with:
