@@ -10,6 +10,7 @@ find_package(JNI REQUIRED)
 unset(CMAKE_FIND_FRAMEWORK)
 
 set(CMAKE_SKIP_RPATH TRUE)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9")
 
 set(CMAKE_JAVA_COMPILE_FLAGS "-source" "1.8" "-target" "1.8")
 add_jar(jar AWTContext.java GENERATE_NATIVE_HEADERS rlawt-headers)
