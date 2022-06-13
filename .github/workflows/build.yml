@@ -30,7 +30,7 @@ jobs:
         retention-days: 1
         if-no-files-found: error
   windows:
-    run-on: windows-2022
+    runs-on: windows-2022
     steps:
     - uses: actions/checkout@v3
     - name: build windows-x86
