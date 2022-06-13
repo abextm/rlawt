@@ -1,0 +1,22 @@
+on:
+  push:
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-20.04
+    container:
+      image: amd64/centos:7.9.2009
+    steps:
+    - uses: actions/checkout@v3
+    - name: build linux-amd64
+      run: |
+        set -e -x
+        mkdir -p build/linux-amd64
+        cd build/linux-amd64
+        cmake -S ../../ -B .
+        cmake --build . --config Release
+    - uses: actions/upload-artifact@v3
+      with:
+        name: linux-amd64
+        path: build/linux-amd64/librlawt.so
+        retention-days: 1
+        if-no-files-found: error
