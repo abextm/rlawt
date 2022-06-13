@@ -68,7 +68,7 @@ public final class AWTContext
 			name = "librlawt.so";
 		}
 
-		String path = "/rlawt/" + os + "-" + arch + "/" + name;
+		String path = os + "-" + arch + "/" + name;
 		try (InputStream is = AWTContext.class.getResourceAsStream(path))
 		{
 			if (is == null)
