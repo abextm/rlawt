@@ -105,7 +105,7 @@ jobs:
         cd ../../
         mkdir jar/net/runelite/rlawt/linux-amd64
         cp build/linux-amd64/librlawt.so jar/net/runelite/rlawt/linux-amd64/
-        cp -r build/CMakeFiles/jar.dir/ jar/
+        cp -r build/linux-amd64/CMakeFiles/jar.dir/ jar/
     - name: jar
       run: |
         set -e -x
