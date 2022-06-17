@@ -36,11 +36,18 @@ import java.nio.file.StandardCopyOption;
 
 public final class AWTContext
 {
+	private static boolean nativesLoaded = false;
+
 	@Native
 	private long instance;
 
-	public static void loadNatives()
+	public synchronized static void loadNatives()
 	{
+		if (nativesLoaded)
+		{
+			return;
+		}
+
 		// this needs to be in core since doing this in hub plugins will break core gpu
 		System.loadLibrary("jawt");
 
@@ -48,6 +55,7 @@ public final class AWTContext
 		if (overridePath != null)
 		{
 			System.load(overridePath);
+			nativesLoaded = true;
 			return;
 		}
 
@@ -81,6 +89,7 @@ public final class AWTContext
 			Path temp = Files.createTempFile("", name);
 			Files.copy(is, temp, StandardCopyOption.REPLACE_EXISTING);
 			System.load(temp.toAbsolutePath().toString());
+			nativesLoaded = true;
 		}
 		catch (IOException e)
 		{
