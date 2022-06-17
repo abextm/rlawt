@@ -25,6 +25,8 @@
 package net.runelite.rlawt;
 
 import java.awt.Component;
+import java.awt.Insets;
+import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Native;
@@ -97,14 +99,20 @@ public final class AWTContext
 		}
 
 		// JAWT on osx does not set our bounds when rlawt creates the CALayer
-		// so we have to calculate it's offset from the parent until it is first
-		// resized
-		// see Component#reshapeNativePeer
-
+		// so we have to calculate it's offset from the superlayer until it is first
+		// resized. We assume that the superlayer is the Window
 		int x = 0;
 		int y = 0;
-		for (Component c = component.getParent(); c != null && c.isLightweight(); c = c.getParent())
+		for (Component c = component.getParent(); c != null; c = c.getParent())
 		{
+			if (c instanceof Window)
+			{
+				Insets insets = ((Window) c).getInsets();
+				x -= insets.left;
+				y -= insets.top;
+				break;
+			}
+
 			x += c.getX();
 			y += c.getY();
 		}

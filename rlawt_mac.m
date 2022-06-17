@@ -34,10 +34,36 @@
 -(void)setContentsChanged;
 @end
 
-@interface RLLayer : CALayer
+@interface RLLayer : CALayer {
+	int offsetY;
+}
+- (void)setFrame:(CGRect)newValue;
+- (void)fixFrame;
 @end
 
 @implementation RLLayer
+- (void)setFrame:(CGRect)newValue {
+	[super setFrame: newValue];
+
+	if (self.superlayer) {
+		offsetY = self.superlayer.frame.size.height - newValue.origin.y - newValue.size.height;
+	}
+}
+
+// JAWT does not update our bounds when the y offset from the bottom of our
+// superlayer changes, causing the layer to become displaced from the correct
+// vertical position
+- (void)fixFrame {
+	if (!self.superlayer) {
+		return;
+	}
+
+	super.frame = CGRectMake(
+		self.frame.origin.x,
+		self.superlayer.frame.size.height - offsetY - self.frame.size.height,
+		self.frame.size.width,
+		self.frame.size.height);
+}
 @end
 
 
@@ -183,14 +209,15 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		layer.contentsGravity = kCAGravityCenter;
 		layer.affineTransform = CGAffineTransformMakeScale(1, -1);
 
-		layer.frame = CGRectMake(
-			dsi->bounds.x - ctx->offsetX,
-			dspi.windowLayer.bounds.size.height - (dsi->bounds.y - ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
-			dsi->bounds.width,
-			dsi->bounds.height);
-
 		ctx->layer = layer;
 		dspi.layer = layer;
+
+		// must be after we give jawt the layer so our frame fix works
+		layer.frame = CGRectMake(
+			dsi->bounds.x + ctx->offsetX,
+			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+			dsi->bounds.width,
+			dsi->bounds.height);
 	});
 
 	if (!rlawtCreateIOSurface(env, ctx)) {
@@ -261,6 +288,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *en
 		[CATransaction setDisableActions: true];
 		ctx->layer.contents = (id) (ctx->buffer[ctx->back]);
 		[(id<CanSetContentsChanged>)ctx->layer setContentsChanged];
+		[(RLLayer*)ctx->layer fixFrame];
 		[CATransaction commit];
 	});
 	ctx->back ^= 1;
