@@ -33,6 +33,7 @@
 #	include <IOSurface/IOSurface.h>
 # include <QuartzCore/CALayer.h>
 # include <OpenGL/OpenGL.h>
+#include <EGL/egl.h>
 #endif
 
 #ifdef __unix__
@@ -56,6 +57,12 @@ typedef struct {
 	IOSurfaceRef buffer[2];
 	CGFloat bufferScale[2];
 	CGLContextObj context;
+
+	EGLDisplay eglDisplay;
+    EGLContext eglContext;
+    EGLSurface eglSurface;
+    EGLConfig eglConfig;
+	EGLImage eglImage[2];
 
 	GLuint tex[2];
 	GLuint fbo[2];
