@@ -242,12 +242,9 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto freeDSI;
 	}
 
-
-    const EGLint renderable = EGL_OPENGL_ES3_BIT_KHR;
-
     EGLint configAttribs[] = {
         EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-        EGL_RENDERABLE_TYPE, renderable,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,
         EGL_RED_SIZE, 8,
         EGL_GREEN_SIZE, 8,
         EGL_BLUE_SIZE, 8,
@@ -265,14 +262,6 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
         goto freeDSI;
     }
 
-    // EGLint pbufferAttribs[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
-    // EGLSurface surf = eglCreatePbufferSurface(display, config, pbufferAttribs);
-    // if (surf == EGL_NO_SURFACE) {
-    //     rlawtThrow(env, "eglCreatePbufferSurface failed");
-    //     eglTerminate(display);
-    //     goto freeDSI;
-    // }
-
 	dispatch_sync(dispatch_get_main_queue(), ^{
 		 layer = [[RLLayer alloc] init];
 		layer.opaque = true;
@@ -282,10 +271,10 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		layer.contentsScale = 2.0f;
 	//	layer.affineTransform = CGAffineTransformMakeScale(1, -1);
 
-		ctx->layer = layer;
-		dspi.layer = layer;
+		// ctx->layer = layer;
+		// dspi.layer = layer;
 
-		// must be after we give jawt the layer so our frame fix works
+		// // must be after we give jawt the layer so our frame fix works
 		layer.frame = CGRectMake(
 			dsi->bounds.x + ctx->offsetX,
 			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
@@ -313,6 +302,18 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
         eglTerminate(display);
         goto freeDSI;
     }
+
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		ctx->layer = layer;
+		dspi.layer = layer;
+
+		// must be after we give jawt the layer so our frame fix works
+		layer.frame = CGRectMake(
+			dsi->bounds.x + ctx->offsetX,
+			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+			dsi->bounds.width,
+			dsi->bounds.height);
+	});
 
     /* store EGL objects */
     ctx->eglDisplay = display;
@@ -393,13 +394,21 @@ freeDSI:
 }
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
-	eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	if (!eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
+		rlawtThrow(env, "eglMakeCurrent failed");
+	}
 
-	eglDestroyContext(ctx->eglDisplay, ctx->eglContext);
+	if (!eglDestroyContext(ctx->eglDisplay, ctx->eglContext)) {
+		rlawtThrow(env, "eglDestroyContext failed");
+	}
 
-	eglDestroySurface(ctx->eglDisplay, ctx->eglSurface);
+	if (!eglDestroySurface(ctx->eglDisplay, ctx->eglSurface)) {
+		rlawtThrow(env, "eglDestroySurface failed");
+	}
 
-	eglTerminate(ctx->eglDisplay);
+	if (!eglTerminate(ctx->eglDisplay)) {
+		rlawtThrow(env, "eglTerminate failed");
+	}
 	// CGLSetCurrentContext(NULL);
 	// if (ctx->context) {
 	// 	CGLDestroyContext(ctx->context);
@@ -447,7 +456,10 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *en
 	}
 
 	glFlush();
+//	glFinish();
 	eglSwapBuffers(ctx->eglDisplay, ctx->eglSurface);
+	//printf("Swap!\n");
+	fflush(stdout);
 	// RLLayer *rlLayer = (RLLayer*) ctx->layer;
 	// rlLayer->newScale = ctx->bufferScale[ctx->back];
 	// [rlLayer performSelectorOnMainThread:
