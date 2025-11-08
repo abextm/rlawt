@@ -262,6 +262,15 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
         goto freeDSI;
     }
 
+    EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
+    EGLContext eglCtx = eglCreateContext(display, config, EGL_NO_CONTEXT, ctxAttribs);
+    if (eglCtx == EGL_NO_CONTEXT) {
+        rlawtThrow(env, "eglCreateContext failed");
+ //       eglDestroySurface(display, surf);
+        eglTerminate(display);
+        goto freeDSI;
+    }
+
 	dispatch_sync(dispatch_get_main_queue(), ^{
 		 layer = [[RLLayer alloc] init];
 		layer.opaque = true;
@@ -286,15 +295,6 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	EGLSurface surf = eglCreateWindowSurface(display, config, nativeWindow, NULL);
 	printf("surf %p no surface %p\n", surf, EGL_NO_SURFACE);
 
-    EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-    EGLContext eglCtx = eglCreateContext(display, config, EGL_NO_CONTEXT, ctxAttribs);
-    if (eglCtx == EGL_NO_CONTEXT) {
-        rlawtThrow(env, "eglCreateContext failed");
-        eglDestroySurface(display, surf);
-        eglTerminate(display);
-        goto freeDSI;
-    }
-
     if (!eglMakeCurrent(display, surf, surf, eglCtx)) {
         rlawtThrow(env, "eglMakeCurrent failed");
         eglDestroyContext(display, eglCtx);
@@ -308,11 +308,11 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		dspi.layer = layer;
 
 		// must be after we give jawt the layer so our frame fix works
-		layer.frame = CGRectMake(
-			dsi->bounds.x + ctx->offsetX,
-			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
-			dsi->bounds.width,
-			dsi->bounds.height);
+		// layer.frame = CGRectMake(
+		// 	dsi->bounds.x + ctx->offsetX,
+		// 	dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+		// 	dsi->bounds.width,
+		// 	dsi->bounds.height);
 	});
 
     /* store EGL objects */
