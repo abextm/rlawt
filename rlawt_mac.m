@@ -393,16 +393,23 @@ freeDSI:
 }
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
-	CGLSetCurrentContext(NULL);
-	if (ctx->context) {
-		CGLDestroyContext(ctx->context);
-	}
-	if (ctx->buffer[0]) {
-		CFRelease(ctx->buffer[0]);
-	}
-	if (ctx->buffer[1]) {
-		CFRelease(ctx->buffer[1]);
-	}
+	eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+
+	eglDestroyContext(ctx->eglDisplay, ctx->eglContext);
+
+	eglDestroySurface(ctx->eglDisplay, ctx->eglSurface);
+
+	eglTerminate(ctx->eglDisplay);
+	// CGLSetCurrentContext(NULL);
+	// if (ctx->context) {
+	// 	CGLDestroyContext(ctx->context);
+	// }
+	// if (ctx->buffer[0]) {
+	// 	CFRelease(ctx->buffer[0]);
+	// }
+	// if (ctx->buffer[1]) {
+	// 	CFRelease(ctx->buffer[1]);
+	// }
 	if (ctx->layer) {
 		dispatch_sync(dispatch_get_main_queue(), ^{
 			[ctx->layer removeFromSuperlayer];
