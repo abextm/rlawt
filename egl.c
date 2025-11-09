@@ -4,21 +4,21 @@
 #include <GLES3/gl3.h>
 
 void rlawtEglInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow) {
-	if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
-		rlawtThrow(env, "eglBindAPI failed");
+    if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
+        rlawtThrow(env, "eglBindAPI failed");
         return;
-	}
+    }
 
-	EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-	if (display == EGL_NO_DISPLAY) {
-		rlawtThrow(env, "eglGetDisplay failed");
+    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (display == EGL_NO_DISPLAY) {
+        rlawtThrow(env, "eglGetDisplay failed");
         return;
-	}
+    }
 
-	if (!eglInitialize(display, NULL, NULL)) {
-		rlawtThrow(env, "eglInitialize failed");
+    if (!eglInitialize(display, NULL, NULL)) {
+        rlawtThrow(env, "eglInitialize failed");
         goto freedisplay;
-	}
+    }
 
     EGLint configAttribs[] = {
         EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
@@ -46,7 +46,7 @@ void rlawtEglInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow
         goto freedisplay;
     }
 
-	EGLSurface surf = eglCreateWindowSurface(display, config, nativeWindow, NULL);
+    EGLSurface surf = eglCreateWindowSurface(display, config, nativeWindow, NULL);
     if (surf == EGL_NO_SURFACE) {
         rlawtThrow(env, "eglCreateWindowSurface failed");
         goto freecontext;
@@ -72,19 +72,19 @@ freedisplay:
 }
 
 void rlawtEglDestroy(JNIEnv *env, AWTContext *ctx) {
-	if (!eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
-		rlawtThrow(env, "eglMakeCurrent failed");
-	}
+    if (!eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
+        rlawtThrow(env, "eglMakeCurrent failed");
+    }
 
-	if (!eglDestroyContext(ctx->eglDisplay, ctx->eglContext)) {
-		rlawtThrow(env, "eglDestroyContext failed");
-	}
+    if (!eglDestroyContext(ctx->eglDisplay, ctx->eglContext)) {
+        rlawtThrow(env, "eglDestroyContext failed");
+    }
 
-	if (!eglDestroySurface(ctx->eglDisplay, ctx->eglSurface)) {
-		rlawtThrow(env, "eglDestroySurface failed");
-	}
+    if (!eglDestroySurface(ctx->eglDisplay, ctx->eglSurface)) {
+        rlawtThrow(env, "eglDestroySurface failed");
+    }
 
-	if (!eglTerminate(ctx->eglDisplay)) {
-		rlawtThrow(env, "eglTerminate failed");
-	}
+    if (!eglTerminate(ctx->eglDisplay)) {
+        rlawtThrow(env, "eglTerminate failed");
+    }
 }

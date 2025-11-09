@@ -33,7 +33,7 @@
 #	include <IOSurface/IOSurface.h>
 # include <QuartzCore/CALayer.h>
 # include <OpenGL/OpenGL.h>
-#include <EGL/egl.h>
+# include <EGL/egl.h>
 #endif
 
 #ifdef __unix__
