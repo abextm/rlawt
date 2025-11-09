@@ -64,10 +64,9 @@ typedef struct {
 	CGLContextObj context;
 
 	EGLDisplay eglDisplay;
-    EGLContext eglContext;
-    EGLSurface eglSurface;
-    EGLConfig eglConfig;
-	EGLImage eglImage[2];
+	EGLContext eglContext;
+	EGLSurface eglSurface;
+	EGLConfig eglConfig;
 
 	GLuint tex[2];
 	GLuint fbo[2];
