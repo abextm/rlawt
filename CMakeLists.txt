@@ -21,7 +21,7 @@ else()
 	add_compile_options(-Wall)
 endif()
 
-add_library(rlawt SHARED rlawt.c rlawt_nix.c rlawt_windows.c)
+add_library(rlawt SHARED rlawt.c rlawt_nix.c rlawt_windows.c egl.c)
 
 target_link_libraries(rlawt rlawt-headers ${JNI_LIBRARIES})
 
@@ -39,7 +39,7 @@ elseif (APPLE)
 	set_property(SOURCE rlawt.c APPEND PROPERTY COMPILE_OPTIONS -x objective-c)
 	target_link_libraries(rlawt ${CORE_FOUNDATION} ${QUARTZ_CORE} ${IO_SURFACE} ${OPENGL} ${APPKIT})
 	include_directories(/Users/adam/git/angle/include)
-	target_link_libraries(rlawt /Users/adam/git/runelite/libEGL.dylib)
+	target_link_libraries(rlawt /Users/adam/git/rlawt/libEGL.dylib)
 	#set_target_properties(rlawt PROPERTIES INSTALL_RPATH "/Users/adam/git/runelite" BUILD_WITH_INSTALL_RPATH TRUE)
 elseif (UNIX)
 	target_link_libraries(rlawt GL GLX)

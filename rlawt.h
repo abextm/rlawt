@@ -51,9 +51,14 @@ typedef struct {
 	JAWT awt;
 	JAWT_DrawingSurface *ds;
 	bool contextCreated;
+	bool gles;
 
 #ifdef __APPLE__
+#ifdef __OBJC__
 	CALayer *layer;
+#else
+	void *layer;
+#endif
 	IOSurfaceRef buffer[2];
 	CGFloat bufferScale[2];
 	CGLContextObj context;
@@ -104,3 +109,6 @@ bool rlawtContextState(JNIEnv *env, AWTContext *context, bool created);
 
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx);
+
+void rlawtEglInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow);
+void rlawtEglDestroy(JNIEnv *env, AWTContext *ctx);

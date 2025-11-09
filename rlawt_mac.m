@@ -27,13 +27,8 @@
 
 #include "rlawt.h"
 #include <jawt_md.h>
-// #include <OpenGL/gl3.h>
+#include <OpenGL/gl3.h>
 #include <QuartzCore/QuartzCore.h>
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES3/gl3.h>
-
-typedef void* GLeglImageOES;
 
 @protocol CanSetContentsChanged
 -(void)setContentsChanged;
@@ -132,61 +127,25 @@ static bool rlawtCreateIOSurface(JNIEnv *env, AWTContext *ctx) {
 		rlawtThrow(env, "unable to create io surface");
 		return false;
 	}
-
-
-	typedef void (*PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)(GLenum, GLeglImageOES);
-static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC pGlEGLImageTargetTexture2DOES = NULL;
-pGlEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-printf("function %p\n", pGlEGLImageTargetTexture2DOES);
 	
-	const GLuint target = GL_TEXTURE_2D;//RECTANGLE;
+	const GLuint target = GL_TEXTURE_RECTANGLE;
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(target, ctx->tex[ctx->back]);
-
-	const char *exts = eglQueryString(ctx->eglDisplay, EGL_EXTENSIONS);
-	printf("exts %s done\n", exts);
-
-        /* create EGLImage from IOSurface */
-        EGLClientBuffer clientBuf = (EGLClientBuffer)buf;
-        EGLAttrib imgAttrs[] = { EGL_NONE };
-        EGLImageKHR image = eglCreateImage(ctx->eglDisplay, ctx->eglContext, EGL_NATIVE_PIXMAP_KHR, clientBuf, imgAttrs);
-        if (image == EGL_NO_IMAGE_KHR) {
-            rlawtThrow(env, "eglCreateImage failed");
-            glBindTexture(target, 0);
-            goto freeSurface;
-        }
-
-        /* bind to texture */
-        pGlEGLImageTargetTexture2DOES(target, (GLeglImageOES)image);
-
-        /* attach to fbo */
-        glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo[ctx->back]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, ctx->tex[ctx->back], 0);
-
-        /* store EGLImage so we can destroy it when replacing/releasing */
-        if (ctx->eglImage[ctx->back]) {
-            /* destroy previous image if present */
-            eglDestroyImage(ctx->eglDisplay, ctx->eglImage[ctx->back]);
-            ctx->eglImage[ctx->back] = EGL_NO_IMAGE_KHR;
-        }
-        ctx->eglImage[ctx->back] = image;
-
-
-	// CGLError err = CGLTexImageIOSurface2D(
-	// 	ctx->context,
-	// 	target, GL_RGBA,
-	// 	size.width, size.height,
-	// 	GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
-	// 	buf, 
-	// 	0);
+	CGLError err = CGLTexImageIOSurface2D(
+		ctx->context,
+		target, GL_RGBA,
+		size.width, size.height,
+		GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+		buf, 
+		0);
 	glBindTexture(target, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, ctx->fbo[ctx->back]);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, ctx->tex[ctx->back], 0);
 
-	// if (err != kCGLNoError) {
-	// 	rlawtThrowCGLError(env, "unable to bind io surface to texture", err);
-	// 	goto freeSurface;
-	// }
+	if (err != kCGLNoError) {
+		rlawtThrowCGLError(env, "unable to bind io surface to texture", err);
+		goto freeSurface;
+	}
 
 	int fbStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fbStatus != GL_FRAMEBUFFER_COMPLETE) {
@@ -219,110 +178,12 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		return;
 	}
 
-	__block RLLayer *layer;
 	id<JAWT_SurfaceLayers> dspi = (id<JAWT_SurfaceLayers>) dsi->platformInfo;
 	if (!dspi) {
 		rlawtThrow(env, "unable to get platform dsi");
 		goto freeDSI;
 	}
 
-	if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
-		rlawtThrow(env, "eglBindAPI failed");
-		goto freeDSI;
-	}
-
-	EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-	if (display == EGL_NO_DISPLAY) {
-		rlawtThrow(env, "eglGetDisplay failed");
-		goto freeDSI;
-	}
-
-	if (!eglInitialize(display, NULL, NULL)) {
-		rlawtThrow(env, "eglInitialize failed");
-		goto freeDSI;
-	}
-
-    EGLint configAttribs[] = {
-        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_ALPHA_SIZE, ctx->alphaDepth,
-        EGL_DEPTH_SIZE, ctx->depthDepth,
-        EGL_STENCIL_SIZE, ctx->stencilDepth,
-        EGL_NONE
-    };
-
-    EGLConfig config = NULL;
-    EGLint numConfigs = 0;
-    if (!eglChooseConfig(display, configAttribs, &config, 1, &numConfigs) || numConfigs == 0) {
-        rlawtThrow(env, "eglChooseConfig failed");
-        eglTerminate(display);
-        goto freeDSI;
-    }
-
-    EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-    EGLContext eglCtx = eglCreateContext(display, config, EGL_NO_CONTEXT, ctxAttribs);
-    if (eglCtx == EGL_NO_CONTEXT) {
-        rlawtThrow(env, "eglCreateContext failed");
- //       eglDestroySurface(display, surf);
-        eglTerminate(display);
-        goto freeDSI;
-    }
-
-	dispatch_sync(dispatch_get_main_queue(), ^{
-		 layer = [[RLLayer alloc] init];
-		layer.opaque = true;
-		layer.needsDisplayOnBoundsChange = false;
-		layer.magnificationFilter = kCAFilterNearest;
-		layer.contentsGravity = kCAGravityCenter;
-		layer.contentsScale = 2.0f;
-	//	layer.affineTransform = CGAffineTransformMakeScale(1, -1);
-
-		// ctx->layer = layer;
-		// dspi.layer = layer;
-
-		// // must be after we give jawt the layer so our frame fix works
-		layer.frame = CGRectMake(
-			dsi->bounds.x + ctx->offsetX,
-			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
-			dsi->bounds.width,
-			dsi->bounds.height);
-	});
-
-	EGLNativeWindowType nativeWindow = (__bridge EGLNativeWindowType) layer;
-	EGLSurface surf = eglCreateWindowSurface(display, config, nativeWindow, NULL);
-	printf("surf %p no surface %p\n", surf, EGL_NO_SURFACE);
-
-    if (!eglMakeCurrent(display, surf, surf, eglCtx)) {
-        rlawtThrow(env, "eglMakeCurrent failed");
-        eglDestroyContext(display, eglCtx);
-        eglDestroySurface(display, surf);
-        eglTerminate(display);
-        goto freeDSI;
-    }
-
-	dispatch_sync(dispatch_get_main_queue(), ^{
-		ctx->layer = layer;
-		dspi.layer = layer;
-
-		// must be after we give jawt the layer so our frame fix works
-		// layer.frame = CGRectMake(
-		// 	dsi->bounds.x + ctx->offsetX,
-		// 	dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
-		// 	dsi->bounds.width,
-		// 	dsi->bounds.height);
-	});
-
-    /* store EGL objects */
-    ctx->eglDisplay = display;
-    ctx->eglContext = eglCtx;
-    ctx->eglSurface = surf;
-    ctx->eglConfig = config;
-	printf("context setup ok\n");
-
-/*
 	CGLPixelFormatAttribute attribs[] = {
 		kCGLPFAColorSize, 24,
 		kCGLPFAAlphaSize, ctx->alphaDepth,
@@ -349,38 +210,36 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		rlawtThrowCGLError(env, "unable to create context", err);
 		goto freeDSI;
 	}
-	
 
 	if (!makeCurrent(env, ctx->context)) {
 		goto freeContext;
 	}
-	*/
 
 	glGenTextures(2, &ctx->tex[0]);
 	glGenFramebuffers(2, &ctx->fbo[0]);
 
-	// dispatch_sync(dispatch_get_main_queue(), ^{
-	// 	RLLayer *layer = [[RLLayer alloc] init];
-	// 	layer.opaque = true;
-	// 	layer.needsDisplayOnBoundsChange = false;
-	// 	layer.magnificationFilter = kCAFilterNearest;
-	// 	layer.contentsGravity = kCAGravityCenter;
-	// 	layer.affineTransform = CGAffineTransformMakeScale(1, -1);
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		RLLayer *layer = [[RLLayer alloc] init];
+		layer.opaque = true;
+		layer.needsDisplayOnBoundsChange = false;
+		layer.magnificationFilter = kCAFilterNearest;
+		layer.contentsGravity = kCAGravityCenter;
+		layer.affineTransform = CGAffineTransformMakeScale(1, -1);
 
-	// 	ctx->layer = layer;
-	// 	dspi.layer = layer;
+		ctx->layer = layer;
+		dspi.layer = layer;
 
-	// 	// must be after we give jawt the layer so our frame fix works
-	// 	layer.frame = CGRectMake(
-	// 		dsi->bounds.x + ctx->offsetX,
-	// 		dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
-	// 		dsi->bounds.width,
-	// 		dsi->bounds.height);
-	// });
+		// must be after we give jawt the layer so our frame fix works
+		layer.frame = CGRectMake(
+			dsi->bounds.x + ctx->offsetX,
+			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+			dsi->bounds.width,
+			dsi->bounds.height);
+	});
 
-	// if (!rlawtCreateIOSurface(env, ctx)) {
-	// 	goto freeContext;
-	// }
+	if (!rlawtCreateIOSurface(env, ctx)) {
+		goto freeContext;
+	}
 
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
 
@@ -393,32 +252,74 @@ freeDSI:
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
 }
 
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLESContext(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, false)) {
+		return;
+	}
+
+	JAWT_DrawingSurfaceInfo *dsi = ctx->ds->GetDrawingSurfaceInfo(ctx->ds);
+	if (!dsi) {
+		rlawtThrow(env, "unable to get dsi");
+		return;
+	}
+
+	__block RLLayer *layer;
+	id<JAWT_SurfaceLayers> dspi = (id<JAWT_SurfaceLayers>) dsi->platformInfo;
+	if (!dspi) {
+		rlawtThrow(env, "unable to get platform dsi");
+		goto freeDSI;
+	}
+
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		layer = [[RLLayer alloc] init];
+		layer.opaque = true;
+		layer.needsDisplayOnBoundsChange = false;
+		layer.magnificationFilter = kCAFilterNearest;
+		layer.contentsGravity = kCAGravityCenter;
+		layer.contentsScale = 2.0f;
+	//	layer.affineTransform = CGAffineTransformMakeScale(1, -1);
+
+		// ctx->layer = layer;
+		// dspi.layer = layer;
+
+		// // must be after we give jawt the layer so our frame fix works
+		layer.frame = CGRectMake(
+			dsi->bounds.x + ctx->offsetX,
+			dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
+			dsi->bounds.width,
+			dsi->bounds.height);
+	});
+
+	rlawtEglInit(env, ctx, layer);//XXX handle failure?
+
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		ctx->layer = layer;
+		dspi.layer = layer;
+	});
+
+	ctx->contextCreated = true;
+	ctx->gles = true;
+
+freeDSI:
+	ctx->ds->FreeDrawingSurfaceInfo(dsi);
+}
+
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
-	if (!eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
-		rlawtThrow(env, "eglMakeCurrent failed");
+	if (ctx->gles) {
+		rlawtEglDestroy(env, ctx);
+	} else {
+		CGLSetCurrentContext(NULL);
+		if (ctx->context) {
+			CGLDestroyContext(ctx->context);
+		}
+		if (ctx->buffer[0]) {
+			CFRelease(ctx->buffer[0]);
+		}
+		if (ctx->buffer[1]) {
+			CFRelease(ctx->buffer[1]);
+		}
 	}
-
-	if (!eglDestroyContext(ctx->eglDisplay, ctx->eglContext)) {
-		rlawtThrow(env, "eglDestroyContext failed");
-	}
-
-	if (!eglDestroySurface(ctx->eglDisplay, ctx->eglSurface)) {
-		rlawtThrow(env, "eglDestroySurface failed");
-	}
-
-	if (!eglTerminate(ctx->eglDisplay)) {
-		rlawtThrow(env, "eglTerminate failed");
-	}
-	// CGLSetCurrentContext(NULL);
-	// if (ctx->context) {
-	// 	CGLDestroyContext(ctx->context);
-	// }
-	// if (ctx->buffer[0]) {
-	// 	CFRelease(ctx->buffer[0]);
-	// }
-	// if (ctx->buffer[1]) {
-	// 	CFRelease(ctx->buffer[1]);
-	// }
 	if (ctx->layer) {
 		dispatch_sync(dispatch_get_main_queue(), ^{
 			[ctx->layer removeFromSuperlayer];
@@ -437,12 +338,20 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_makeCurrent(JNIEnv *en
 		return;
 	}
 
+	if (ctx->gles) {
+		return;
+	}
+
 	makeCurrent(env, ctx->context);
 }
 
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_detachCurrent(JNIEnv *env, jobject self) {
 	AWTContext *ctx = rlawtGetContext(env, self);
 	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return;
+	}
+
+	if (ctx->gles) {
 		return;
 	}
 
@@ -455,28 +364,29 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *en
 		return;
 	}
 
-	glFlush();
-//	glFinish();
-	eglSwapBuffers(ctx->eglDisplay, ctx->eglSurface);
-	//printf("Swap!\n");
-	fflush(stdout);
-	// RLLayer *rlLayer = (RLLayer*) ctx->layer;
-	// rlLayer->newScale = ctx->bufferScale[ctx->back];
-	// [rlLayer performSelectorOnMainThread:
-	// 	@selector(displayIOSurface:)
-	// 	withObject: (id)(ctx->buffer[ctx->back])
-	// 	waitUntilDone: true];
-	
-	// ctx->back ^= 1;
+	if (ctx->gles) {
+		eglSwapBuffers(ctx->eglDisplay, ctx->eglSurface);
+		return;
+	}
 
-	// if (!ctx->buffer[ctx->back]
-	// 	|| IOSurfaceGetWidth(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.width * ctx->bufferScale[ctx->back])
-	// 	|| IOSurfaceGetHeight(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.height * ctx->bufferScale[ctx->back])
-	// 	|| ctx->layer.superlayer.contentsScale != ctx->bufferScale[ctx->back]) {
-	// 	if (!rlawtCreateIOSurface(env, ctx)) {
-	// 		return;
-	// 	}
-	// }
+	glFlush();
+	RLLayer *rlLayer = (RLLayer*) ctx->layer;
+	rlLayer->newScale = ctx->bufferScale[ctx->back];
+	[rlLayer performSelectorOnMainThread:
+		@selector(displayIOSurface:)
+		withObject: (id)(ctx->buffer[ctx->back])
+		waitUntilDone: true];
+	
+	ctx->back ^= 1;
+
+	if (!ctx->buffer[ctx->back]
+		|| IOSurfaceGetWidth(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.width * ctx->bufferScale[ctx->back])
+		|| IOSurfaceGetHeight(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.height * ctx->bufferScale[ctx->back])
+		|| ctx->layer.superlayer.contentsScale != ctx->bufferScale[ctx->back]) {
+		if (!rlawtCreateIOSurface(env, ctx)) {
+			return;
+		}
+	}
 }
 
 JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_getFramebuffer(JNIEnv *env, jobject self, jboolean front) {
@@ -485,8 +395,11 @@ JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_getFramebuffer(JNIEnv 
 		return 0;
 	}
 
-	///return ctx->fbo[ctx->back ^ front];
-	return 0;
+	if (ctx->gles) {
+		return 0;
+	}
+
+	return ctx->fbo[ctx->back ^ front];
 }
 
 #endif
