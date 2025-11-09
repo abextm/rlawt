@@ -159,6 +159,8 @@ public final class AWTContext
 	 */
 	public native void createGLContext();
 
+	public native void createGLESContext();
+
 	public native int setSwapInterval(int interval);
 
 	public native void makeCurrent();
