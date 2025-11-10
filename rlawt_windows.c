@@ -45,12 +45,93 @@ void rlawtThrow(JNIEnv *env, const char *msg) {
 	}
 }
 
-static bool makeCurrent(JNIEnv *env, HDC dc, HGLRC context) {
-	if (!wglMakeCurrent(dc, context)) {
+static bool rlawtWGLMakeCurrent(JNIEnv *env, AWTContext *ctx, bool attach) {
+	if (!wglMakeCurrent(ctx->dspi->hdc, attach ? ctx->context : NULL)) {
 		rlawtThrow(env, "unable to make current");
 		return false;
 	}
 	return true;
+}
+
+static int rlawtWGLSetSwapInterval(JNIEnv *env, AWTContext  *ctx, int interval) {
+	if (interval < 0 && !ctx->wglSwapControlTear) {
+		interval = -interval;
+	}
+
+	if (ctx->wglSwapIntervalEXT) {
+		ctx->wglSwapIntervalEXT(interval);
+	} else {
+		interval = 0;
+	}
+
+	return interval;
+}
+
+static void rlawtWGLSwapBuffers(JNIEnv *env, AWTContext *ctx) {
+	if (!SwapBuffers(ctx->dspi->hdc)) {
+		rlawtThrow(env, "unable to SwapBuffers");
+	}
+}
+
+static bool rlawtWGLInit(JNIEnv *env, AWTContext *ctx) {
+	PIXELFORMATDESCRIPTOR pfd = {0};
+	pfd.nSize = sizeof(pfd);
+	pfd.nVersion = 1;
+	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+	pfd.iPixelType = PFD_TYPE_RGBA;
+	pfd.cColorBits = 24;
+	pfd.cRedBits = 8;
+	pfd.cBlueBits = 8;
+	pfd.cGreenBits = 8;
+	pfd.cAlphaBits = ctx->alphaDepth;
+	pfd.cDepthBits = ctx->depthDepth;
+	pfd.cStencilBits = ctx->stencilDepth;
+
+	int format = ChoosePixelFormat(ctx->dspi->hdc, &pfd);
+	if (!format) {
+		rlawtThrow(env, "unable to choose format");
+		goto unlock;
+	}
+
+	if (!SetPixelFormat(ctx->dspi->hdc, format, &pfd)) {
+		rlawtThrow(env, "unable to set pixel format");
+		goto unlock;
+	}
+
+	if (!rlawtWGLMakeCurrent(env, ctx, false)) {
+		goto unlock;
+	}
+
+	ctx->context = wglCreateContext(ctx->dspi->hdc);
+	if (!ctx->context) {
+		rlawtThrow(env, "unable to create context");
+		goto unlock;
+	}
+
+	if (!rlawtWGLMakeCurrent(env, ctx, true)) {
+		goto freeContext;
+	}
+
+	ctx->makeCurrent = rlawtWGLMakeCurrent;
+	ctx->setSwapInterval = rlawtWGLSetSwapInterval;
+	ctx->swapBuffers = rlawtWGLSwapBuffers;
+
+	PFNWGLGETEXTENSIONSSTRINGEXTPROC wglGetExtensionsStringEXT = (PFNWGLGETEXTENSIONSSTRINGEXTPROC) wglGetProcAddress("wglGetExtensionsStringEXT");
+	if (wglGetExtensionsStringEXT) {
+		const char *extensions = wglGetExtensionsStringEXT();
+
+		if (strstr(extensions, "WGL_EXT_swap_control")) {
+			ctx->wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
+			ctx->wglSwapControlTear = !!strstr(extensions, "WGL_EXT_swap_control_tear");
+		}
+	}
+
+	return true;
+
+freeContext:
+	wglDeleteContext(ctx->context);
+unlock:
+	return false;
 }
 
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv *env, jobject self) {
@@ -79,51 +160,19 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto unlock;
 	}
 
-	PIXELFORMATDESCRIPTOR pfd = {0};
-	pfd.nSize = sizeof(pfd);
-	pfd.nVersion = 1;
-	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.cColorBits = 24;
-	pfd.cRedBits = 8;
-	pfd.cBlueBits = 8;
-	pfd.cGreenBits = 8;
-	pfd.cAlphaBits = ctx->alphaDepth;
-	pfd.cDepthBits = ctx->depthDepth;
-	pfd.cStencilBits = ctx->stencilDepth;
+	if (ctx->useEGL) {
+		ctx->eglDisplay = ctx->egl.eglGetDisplay(ctx->dspi->hdc);
+		if (ctx->eglDisplay == EGL_NO_DISPLAY) {
+			rlawtThrow(env, "eglGetDisplay failed");
+			goto unlock;
+		}
 
-	int format = ChoosePixelFormat(ctx->dspi->hdc, &pfd);
-	if (!format) {
-		rlawtThrow(env, "unable to choose format");
-		goto unlock;
-	}
-
-	if (!SetPixelFormat(ctx->dspi->hdc, format, &pfd)) {
-		rlawtThrow(env, "unable to set pixel format");
-		goto unlock;
-	}
-
-	if (!makeCurrent(env, ctx->dspi->hdc, NULL)) {
-		goto unlock;
-	}
-
-	ctx->context = wglCreateContext(ctx->dspi->hdc);
-	if (!ctx->context) {
-		rlawtThrow(env, "unable to create context");
-		goto unlock;
-	}
-
-	if (!makeCurrent(env, ctx->dspi->hdc, ctx->context)) {
-		goto freeContext;
-	}
-
-	PFNWGLGETEXTENSIONSSTRINGEXTPROC wglGetExtensionsStringEXT = (PFNWGLGETEXTENSIONSSTRINGEXTPROC) wglGetProcAddress("wglGetExtensionsStringEXT");
-	if (wglGetExtensionsStringEXT) {
-		const char *extensions = wglGetExtensionsStringEXT();
-
-		if (strstr(extensions, "WGL_EXT_swap_control")) {
-			ctx->wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-			ctx->wglSwapControlTear = !!strstr(extensions, "WGL_EXT_swap_control_tear");
+		if (!rlawtEGLInit(env, ctx, ctx->dspi->hwnd)) {
+			goto unlock;
+		}
+	} else {
+		if (!rlawtWGLInit(env, ctx)) {
+			goto unlock;
 		}
 	}
 
@@ -132,8 +181,6 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	ctx->contextCreated = true;
 	return;
 
-freeContext:
-	wglDeleteContext(ctx->context);
 unlock:
 	jthrowable exception = (*env)->ExceptionOccurred(env);
 	ctx->ds->Unlock(ctx->ds);
@@ -148,57 +195,6 @@ void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
 	}
 	if (ctx->dsi) {
 		ctx->ds->FreeDrawingSurfaceInfo(ctx->dsi);
-	}
-}
-
-JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_setSwapInterval(JNIEnv *env, jobject self, jint interval) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, true)) {
-		return 0;
-	}
-
-	ctx->awt.Lock(env);
-
-	if (interval < 0 && !ctx->wglSwapControlTear) {
-		interval = -interval;
-	}
-
-	if (ctx->wglSwapIntervalEXT) {
-		ctx->wglSwapIntervalEXT(interval);
-	} else {
-		interval = 0;
-	}
-
-	rlawtUnlockAWT(env, ctx);
-	return interval;
-}
-
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_makeCurrent(JNIEnv *env, jobject self) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, true)) {
-		return;
-	}
-
-	makeCurrent(env, ctx->dspi->hdc, ctx->context);
-}
-
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_detachCurrent(JNIEnv *env, jobject self) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, true)) {
-		return;
-	}
-
-	makeCurrent(env, ctx->dspi->hdc, NULL);
-}
-
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *env, jobject self) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, true)) {
-		return;
-	}
-
-	if (!SwapBuffers(ctx->dspi->hdc)) {
-		rlawtThrow(env, "unable to SwapBuffers");
 	}
 }
 

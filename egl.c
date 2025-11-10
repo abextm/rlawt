@@ -1,7 +1,6 @@
 #include "rlawt.h"
 #include <EGL/eglext.h>
 
-
 static bool rlawtEGLMakeCurrent(JNIEnv *env, AWTContext *ctx, bool attach) {
 	if (!ctx->egl.eglMakeCurrent(
 		ctx->eglDisplay,
@@ -32,16 +31,6 @@ static void rlawtEGLSwapBuffers(JNIEnv *env, AWTContext *ctx) {
 bool rlawtEGLInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow) {
 	if (!ctx->egl.eglBindAPI(ctx->useGLES ? EGL_OPENGL_ES_API : EGL_OPENGL_API)) {
 		rlawtThrow(env, "eglBindAPI failed");
-		return false;
-	}
-
-#ifdef __unix__
-	ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, ctx->dpy, NULL);
-#else
-	ctx->eglDisplay = ctx->egl.eglGetDisplay(EGL_DEFAULT_DISPLAY);
-#endif
-	if (ctx->eglDisplay == EGL_NO_DISPLAY) {
-		rlawtThrow(env, "eglGetDisplay failed");
 		return false;
 	}
 

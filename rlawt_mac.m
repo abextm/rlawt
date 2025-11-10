@@ -297,6 +297,12 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 				dsi->bounds.height);
 		});
 
+		ctx->eglDisplay = ctx->egl.eglGetDisplay(EGL_DEFAULT_DISPLAY);
+		if (ctx->eglDisplay == EGL_NO_DISPLAY) {
+			rlawtThrow(env, "eglGetDisplay failed");
+			goto freeDSI;
+		}
+
 		if (!rlawtEGLInit(env, ctx, layer)) {
 			goto freeDSI;
 		}
