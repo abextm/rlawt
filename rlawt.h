@@ -48,7 +48,7 @@
 #	include <wglext.h>
 #endif
 
-#define RLAWT_EGL_METHODS \	
+#define RLAWT_EGL_METHODS \
 	METHOD(PFNEGLGETDISPLAYPROC, eglGetDisplay) \
 	METHOD(PFNEGLINITIALIZEPROC, eglInitialize) \
 	METHOD(PFNEGLTERMINATEPROC, eglTerminate) \
