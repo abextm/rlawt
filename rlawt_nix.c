@@ -28,6 +28,7 @@
 #include "rlawt.h"
 #include <jawt_md.h>
 #include <string.h>
+#include <EGL/eglext.h>
 
 static XErrorEvent lastError = {0};
 static int rlawtXErrorHandler(Display *display, XErrorEvent *event) {
@@ -164,10 +165,10 @@ static bool rlawtGLXInit(JNIEnv *env, AWTContext *ctx, JAWT_X11DrawingSurfaceInf
 
 	const char *extensions = glXQueryExtensionsString(ctx->dpy, screen);
 	if (strstr(extensions, "GLX_EXT_swap_control")) {
-		ctx->glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress("glXSwapIntervalEXT");
+		ctx->glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress((GLubyte*) "glXSwapIntervalEXT");
 		ctx->glxSwapControlTear = !!strstr(extensions, "GLX_EXT_swap_control_tear");
 	} else if (strstr(extensions, "GLX_SGI_swap_control")) {
-		ctx->glXSwapIntervalSGI = (PFNGLXSWAPINTERVALSGIPROC) glXGetProcAddress("glXSwapIntervalSGI");
+		ctx->glXSwapIntervalSGI = (PFNGLXSWAPINTERVALSGIPROC) glXGetProcAddress((GLubyte*) "glXSwapIntervalSGI");
 	}
 
 	return true;
@@ -215,6 +216,12 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	}
 
 	if (ctx->useEGL) {
+		ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, ctx->dpy, NULL);
+		if (ctx->eglDisplay == EGL_NO_DISPLAY) {
+			rlawtThrow(env, "eglGetDisplay failed");
+			goto freeDisplay;
+		}
+
 		if (!rlawtEGLInit(env, ctx, ctx->drawable)) {
 			goto freeDisplay;
 		}
@@ -254,133 +261,6 @@ unlock:
 	XSetErrorHandler(oldErrorHandler);
 	rlawtUnlockAWT(env, ctx);
 }
-/*
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLESContext(JNIEnv *env, jobject self) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, false)) {
-		return;
-	}
-
-	ctx->awt.Lock(env);
-	XErrorHandler oldErrorHandler = XSetErrorHandler(rlawtXErrorHandler);
-
-	jint dsLock = ctx->ds->Lock(ctx->ds);
-	if (dsLock & JAWT_LOCK_ERROR) {
-		rlawtThrow(env, "unable to lock ds");
-		goto unlock;
-	}
-
-	JAWT_DrawingSurfaceInfo *dsi = ctx->ds->GetDrawingSurfaceInfo(ctx->ds);
-	if (!dsi) {
-		rlawtThrow(env, "unable to get dsi");
-		goto unlockDS;
-	}
-
-	JAWT_X11DrawingSurfaceInfo *dspi = (JAWT_X11DrawingSurfaceInfo*) dsi->platformInfo;
-	if (!dspi || !dspi->display || !dspi->drawable) {
-		rlawtThrow(env, "unable to get platform dsi");
-		goto freeDSI;
-	}
-
-	ctx->drawable = dspi->drawable;
-
-	const char *displayName = XDisplayString(dspi->display);
-	ctx->dpy = XOpenDisplay(displayName);
-	if (!ctx->dpy) {
-		rlawtThrow(env, "unable to open display copy");
-		goto freeDSI;
-	}
-
-	if (ctx->egl.eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
-		rlawtThrow(env, "eglBindAPI failed");
-		return;
-	}
-
-	ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, ctx->dpy, NULL);
-	if (ctx->eglDisplay == EGL_NO_DISPLAY) {
-		rlawtThrow(env, "unable to get platform dsi");
-		goto freeDisplay;
-	}
-
-	if (!ctx->egl.eglInitialize(ctx->eglDisplay, NULL, NULL)) {
-		rlawtThrow(env, "eglInitialize failed");
-		goto freeEGLDisplay;
-	}
-
-	EGLint configAttribs[] = {
-		EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,
-		EGL_RED_SIZE, 8,
-		EGL_GREEN_SIZE, 8,
-		EGL_BLUE_SIZE, 8,
-		EGL_ALPHA_SIZE, ctx->alphaDepth,
-		EGL_DEPTH_SIZE, ctx->depthDepth,
-		EGL_STENCIL_SIZE, ctx->stencilDepth,
-		EGL_NONE
-	};
-
-	EGLConfig config = NULL;
-	EGLint numConfigs = 0;
-	if (!ctx->egl.eglChooseConfig(ctx->eglDisplay, configAttribs, &config, 1, &numConfigs) || numConfigs == 0) {
-		rlawtThrow(env, "eglChooseConfig failed");
-		goto freeEGLDisplay;
-	}
-
-	EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-	ctx->eglContext = ctx->egl.eglCreateContext(ctx->eglDisplay, config, EGL_NO_CONTEXT, ctxAttribs);
-	if (ctx->eglContext == EGL_NO_CONTEXT) {
-		rlawtThrow(env, "eglCreateContext failed");
-		goto freeEGLDisplay;
-	}
-
-	// our jawt drawable is always a Window*
-	ctx->eglSurface = ctx->egl.eglCreatePlatformWindowSurface(ctx->eglDisplay, config, &ctx->drawable, NULL);
-	if (ctx->eglSurface == EGL_NO_SURFACE) {
-		rlawtThrow(env, "eglCreateWindowSurface failed");
-		goto freeEGLContext;
-	}
-
-	if (!makeCurrent(env, ctx, true)) {
-		goto freeEGLSurface;
-	}
-
-	ctx->ds->FreeDrawingSurfaceInfo(dsi);
-
-	XSync(ctx->dpy, false);//TODO?
-
-	ctx->ds->Unlock(ctx->ds);
-	rlawtUnlockAWT(env, ctx);
-
-	ctx->eglConfig = config;
-	ctx->contextCreated = true;
-	return;
-
-freeEGLSurface:
-	ctx->egl.eglDestroySurface(ctx->eglDisplay, ctx->eglSurface);
-freeEGLContext:
-	ctx->egl.eglDestroyContext(ctx->eglDisplay, ctx->eglContext);
-freeEGLDisplay:
-	ctx->egl.eglTerminate(ctx->eglDisplay);
-freeDisplay:
-	XSync(ctx->dpy, false);
-	XCloseDisplay(ctx->dpy);
-	jthrowable exception;
-freeDSI:
-	exception = (*env)->ExceptionOccurred(env);
-	ctx->ds->FreeDrawingSurfaceInfo(dsi);
-	if (exception) {
-		(*env)->Throw(env, exception);
-	}
-unlockDS:
-	exception = (*env)->ExceptionOccurred(env);
-	ctx->ds->Unlock(ctx->ds);
-	if (exception) {
-		(*env)->Throw(env, exception);
-	}
-unlock:
-	XSetErrorHandler(oldErrorHandler);
-	rlawtUnlockAWT(env, ctx);
-}*/
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
 	if (ctx->contextCreated) {
