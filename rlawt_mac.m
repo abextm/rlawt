@@ -107,27 +107,6 @@ static int rlawtCGLSetSwapInterval(JNIEnv *env, AWTContext *ctx, int interval) {
 	return 0;
 }
 
-static void rlawtCGLSwapBuffers(JNIENV *env, AWTContext *ctx) {
-	glFlush();
-	RLLayer *rlLayer = (RLLayer*) ctx->layer;
-	rlLayer->newScale = ctx->bufferScale[ctx->back];
-	[rlLayer performSelectorOnMainThread:
-		@selector(displayIOSurface:)
-		withObject: (id)(ctx->buffer[ctx->back])
-		waitUntilDone: true];
-
-	ctx->back ^= 1;
-
-	if (!ctx->buffer[ctx->back]
-		|| IOSurfaceGetWidth(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.width * ctx->bufferScale[ctx->back])
-		|| IOSurfaceGetHeight(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.height * ctx->bufferScale[ctx->back])
-		|| ctx->layer.superlayer.contentsScale != ctx->bufferScale[ctx->back]) {
-		if (!rlawtCreateIOSurface(env, ctx)) {
-			return;
-		}
-	}
-}
-
 static void propsPutInt(CFMutableDictionaryRef props, const CFStringRef key, int value) {
 	CFNumberRef boxedValue = CFNumberCreate(NULL, kCFNumberIntType, &value);
 	CFDictionaryAddValue(props, key, boxedValue);
@@ -191,7 +170,28 @@ freeSurface:
 	return false;
 }
 
-static bool rlawtCGLInit(JNIEnv *env, AWTContext *ctx) {
+static void rlawtCGLSwapBuffers(JNIEnv *env, AWTContext *ctx) {
+	glFlush();
+	RLLayer *rlLayer = (RLLayer*) ctx->layer;
+	rlLayer->newScale = ctx->bufferScale[ctx->back];
+	[rlLayer performSelectorOnMainThread:
+		@selector(displayIOSurface:)
+		withObject: (id)(ctx->buffer[ctx->back])
+		waitUntilDone: true];
+
+	ctx->back ^= 1;
+
+	if (!ctx->buffer[ctx->back]
+		|| IOSurfaceGetWidth(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.width * ctx->bufferScale[ctx->back])
+		|| IOSurfaceGetHeight(ctx->buffer[ctx->back]) != (size_t) (ctx->layer.frame.size.height * ctx->bufferScale[ctx->back])
+		|| ctx->layer.superlayer.contentsScale != ctx->bufferScale[ctx->back]) {
+		if (!rlawtCreateIOSurface(env, ctx)) {
+			return;
+		}
+	}
+}
+
+static bool rlawtCGLInit(JNIEnv *env, AWTContext *ctx, JAWT_DrawingSurfaceInfo *dsi, id<JAWT_SurfaceLayers> dspi) {
 	CGLPixelFormatAttribute attribs[] = {
 		kCGLPFAColorSize, 24,
 		kCGLPFAAlphaSize, ctx->alphaDepth,
@@ -219,7 +219,7 @@ static bool rlawtCGLInit(JNIEnv *env, AWTContext *ctx) {
 		goto freeDSI;
 	}
 
-	if (!rlawtCGLMakeCurrent(env, ctx)) {
+	if (!rlawtCGLMakeCurrent(env, ctx, true)) {
 		goto freeContext;
 	}
 
@@ -280,10 +280,6 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	}
 
 	if (ctx->useEGL) {
-		if (!rlawtEGLInit(env, ctx, )) {
-			goto freeDSI;
-		}
-	} else {
 		__block RLLayer *layer;
 		dispatch_sync(dispatch_get_main_queue(), ^{
 			layer = [[RLLayer alloc] init];
@@ -305,8 +301,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 				dsi->bounds.height);
 		});
 
-		if (!rlawtCGLInit(env, ctx, layer)) {
-			// free layer?
+		if (!rlawtEGLInit(env, ctx, layer)) {
 			goto freeDSI;
 		}
 
@@ -314,6 +309,11 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 			ctx->layer = layer;
 			dspi.layer = layer;
 		});
+	} else {
+		if (!rlawtCGLInit(env, ctx, dsi, dspi)) {
+			// free layer?
+			goto freeDSI;
+		}
 	}
 
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
@@ -325,42 +325,8 @@ freeDSI:
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
 }
 
-JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLESContext(JNIEnv *env, jobject self) {
-	AWTContext *ctx = rlawtGetContext(env, self);
-	if (!ctx || !rlawtContextState(env, ctx, false)) {
-		return;
-	}
-
-	JAWT_DrawingSurfaceInfo *dsi = ctx->ds->GetDrawingSurfaceInfo(ctx->ds);
-	if (!dsi) {
-		rlawtThrow(env, "unable to get dsi");
-		return;
-	}
-
-	__block RLLayer *layer;
-	id<JAWT_SurfaceLayers> dspi = (id<JAWT_SurfaceLayers>) dsi->platformInfo;
-	if (!dspi) {
-		rlawtThrow(env, "unable to get platform dsi");
-		goto freeDSI;
-	}
-
-
-	rlawtEglInit(env, ctx, layer);//XXX handle failure?
-
-	dispatch_sync(dispatch_get_main_queue(), ^{
-		ctx->layer = layer;
-		dspi.layer = layer;
-	});
-
-	ctx->contextCreated = true;
-	ctx->gles = true;
-
-freeDSI:
-	ctx->ds->FreeDrawingSurfaceInfo(dsi);
-}
-
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
-	if (!ctx->gles) {
+	if (!ctx->useEGL) {
 		CGLSetCurrentContext(NULL);
 		if (ctx->context) {
 			CGLDestroyContext(ctx->context);
@@ -387,7 +353,7 @@ JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_getFramebuffer(JNIEnv 
 		return 0;
 	}
 
-	if (ctx->gles) {
+	if (ctx->useEGL) {
 		return 0;
 	}
 
