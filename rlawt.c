@@ -25,6 +25,9 @@
 
 #include "rlawt.h"
 #include <stdlib.h>
+#ifndef _WIN32
+# include <dlfcn.h>
+#endif
 
 static jfieldID AWTContext_instance = 0;
 AWTContext *rlawtGetContext(JNIEnv *env, jobject self) {
@@ -100,6 +103,10 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_destroy(JNIEnv *env, j
 
 	(*env)->SetLongField(env, self, AWTContext_instance, 0);
 
+	if (ctx->useEGL) {
+		rlawtEGLDestroy(env, ctx);
+	}
+
 	rlawtContextFreePlatform(env, ctx);
 	if (ctx->ds) {
 		ctx->awt.FreeDrawingSurface(ctx->ds);
@@ -138,6 +145,68 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configureMultisamples(
 	}
 
 	ctx->multisamples = samples;
+}
+
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_useEGL(JNIEnv *env, jobject self, jboolean egl, jlong eglGetProcAddressJ) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, false)) {
+		return;
+	}
+
+	if (egl && !ctx->useEGL) {
+		PFNEGLGETPROCADDRESSPROC eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) eglGetProcAddressJ;// TODO: do we want to pass this in from lwjgl EGL
+		if (!eglGetProcAddress) {
+#ifdef _WIN32
+			HINSTANCE eglHandle = LoadLibraryA("EGL");
+			if (!eglHandle) {
+				rlawtThrow(env, "failed to find egl");
+				return;
+			}
+
+			eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) GetProcAddress(eglHandle, "eglGetProcAddress");
+#else
+			void *eglHandle = dlopen("libEGL.so", RTLD_LAZY | RTLD_LOCAL);
+			if (!eglHandle) {
+				rlawtThrow(env, "failed to find egl");
+				return;
+			}
+			eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) dlsym(eglHandle, "eglGetProcAddress");
+#endif
+		}
+
+		if (!eglGetProcAddress) {
+			rlawtThrow(env, "failed to find eglGetProcAddress");
+			return;
+		}
+
+#define METHOD(TYPE, NAME) ctx->egl.NAME = (TYPE) eglGetProcAddress(#NAME); \
+	  if (!ctx->egl.NAME) { \
+			goto fail; \
+		}
+
+		RLAWT_EGL_METHODS
+#undef METHOD
+	}
+
+	ctx->useEGL = egl;
+	return;
+
+fail:
+	rlawtThrow(env, "failed to load egl methods");
+}
+
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_useGLES(JNIEnv *env, jobject self, jboolean gles) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, false)) {
+		return;
+	}
+
+	if (gles && !ctx->useEGL) {
+		rlawtThrow(env, "GLES requires EGL");
+		return;
+	}
+
+	ctx->useGLES = gles;
 }
 
 JNIEXPORT jlong JNICALL Java_net_runelite_rlawt_AWTContext_getGLContext(JNIEnv *env, jobject self) {
@@ -201,3 +270,58 @@ JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_getFramebuffer(JNIEnv 
 	return 0;
 }
 #endif
+
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_makeCurrent(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return;
+	}
+
+	ctx->awt.Lock(env);
+
+	ctx->makeCurrent(env, ctx, true);
+
+	rlawtUnlockAWT(env, ctx);
+}
+
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_detachCurrent(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return;
+	}
+
+	ctx->awt.Lock(env);
+
+	ctx->makeCurrent(env, ctx, false);
+
+	rlawtUnlockAWT(env, ctx);
+}
+
+
+JNIEXPORT jint JNICALL Java_net_runelite_rlawt_AWTContext_setSwapInterval(JNIEnv *env, jobject self, jint interval) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return 0;
+	}
+
+	ctx->awt.Lock(env);
+
+	interval = ctx->setSwapInterval(env, ctx, interval);
+
+	rlawtUnlockAWT(env, ctx);
+
+	return interval;
+}
+
+JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_swapBuffers(JNIEnv *env, jobject self) {
+	AWTContext *ctx = rlawtGetContext(env, self);
+	if (!ctx || !rlawtContextState(env, ctx, true)) {
+		return;
+	}
+
+	ctx->awt.Lock(env);
+
+	ctx->swapBuffers(env, ctx);
+
+	rlawtUnlockAWT(env, ctx);
+}

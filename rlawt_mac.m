@@ -329,7 +329,12 @@ void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx) {
 }
 
 JNIEXPORT int JNICALL Java_net_runelite_rlawt_AWTContext_setSwapInterval(JNIEnv *env, jobject self, jint interval) {
-	return 0;
+	if (ctx->egl) {
+		if (interval < 0) {
+			interval = -interval;
+		}
+		eglSwapInterval(ctx->eglDisplay, interval);
+	}
 }
 
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_makeCurrent(JNIEnv *env, jobject self) {

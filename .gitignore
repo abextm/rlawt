@@ -1,3 +1,5 @@
 /build*
 .vscode/
 jdks/
+.idea/*
+.DS_Store
