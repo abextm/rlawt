@@ -79,8 +79,7 @@ bool rlawtEGLInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow
 		goto freeDisplay;
 	}
 
-	//ctx->eglSurface = ctx->egl.eglCreateWindowSurface(ctx->eglDisplay, config, nativeWindow, NULL);
-	ctx->eglSurface = ctx->egl.eglCreatePlatformWindowSurface(ctx->eglDisplay, config, &ctx->drawable, NULL);
+	ctx->eglSurface = ctx->egl.eglCreateWindowSurface(ctx->eglDisplay, config, nativeWindow, NULL);
 	if (ctx->eglSurface == EGL_NO_SURFACE) {
 		rlawtThrow(env, "eglCreateWindowSurface failed");
 		goto freeContext;
