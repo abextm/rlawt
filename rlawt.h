@@ -27,13 +27,14 @@
 #include <jawt.h>
 #include <jawt_md.h>
 #include <stdbool.h>
+#define EGL_EGL_PROTOTYPES 0
+#include <EGL/egl.h>
 
 #ifdef __APPLE__
 # define GL_SILENCE_DEPRECATION
 #	include <IOSurface/IOSurface.h>
 # include <QuartzCore/CALayer.h>
 # include <OpenGL/OpenGL.h>
-# include <EGL/egl.h>
 #endif
 
 #ifdef __unix__
@@ -47,11 +48,44 @@
 #	include <wglext.h>
 #endif
 
+#define RLAWT_EGL_METHODS \	
+	METHOD(PFNEGLGETDISPLAYPROC, eglGetDisplay) \
+	METHOD(PFNEGLINITIALIZEPROC, eglInitialize) \
+	METHOD(PFNEGLTERMINATEPROC, eglTerminate) \
+	METHOD(PFNEGLGETPROCADDRESSPROC, eglGetProcAddress) \
+	METHOD(PFNEGLCHOOSECONFIGPROC, eglChooseConfig) \
+	METHOD(PFNEGLCREATECONTEXTPROC, eglCreateContext) \
+	METHOD(PFNEGLDESTROYCONTEXTPROC, eglDestroyContext) \
+	METHOD(PFNEGLCREATEPBUFFERSURFACEPROC, eglCreatePbufferSurface) \
+	METHOD(PFNEGLCREATEWINDOWSURFACEPROC, eglCreateWindowSurface) \
+	METHOD(PFNEGLDESTROYSURFACEPROC, eglDestroySurface) \
+	METHOD(PFNEGLMAKECURRENTPROC, eglMakeCurrent) \
+	METHOD(PFNEGLSWAPBUFFERSPROC, eglSwapBuffers) \
+	METHOD(PFNEGLSWAPINTERVALPROC, eglSwapInterval) \
+	METHOD(PFNEGLQUERYSTRINGPROC, eglQueryString) \
+	METHOD(PFNEGLGETCONFIGATTRIBPROC, eglGetConfigAttrib) \
+	METHOD(PFNEGLWAITNATIVEPROC, eglWaitNative) \
+	METHOD(PFNEGLWAITGLPROC, eglWaitGL) \
+	METHOD(PFNEGLBINDAPIPROC, eglBindAPI) \
+	METHOD(PFNEGLGETERRORPROC, eglGetError) \
+  METHOD(PFNEGLGETPLATFORMDISPLAYPROC, eglGetPlatformDisplay) \
+	METHOD(PFNEGLCREATEPLATFORMWINDOWSURFACEPROC, eglCreatePlatformWindowSurface)
 typedef struct {
+#	define METHOD(TYPE, NAME) TYPE NAME;
+	RLAWT_EGL_METHODS
+# undef METHOD
+} RLAWTEGLMethods;
+
+typedef struct AWTContext {
 	JAWT awt;
 	JAWT_DrawingSurface *ds;
 	bool contextCreated;
-	bool gles;
+
+	RLAWTEGLMethods egl;
+
+	EGLDisplay eglDisplay;
+	EGLContext eglContext;
+	EGLSurface eglSurface;
 
 #ifdef __APPLE__
 #ifdef __OBJC__
@@ -62,11 +96,6 @@ typedef struct {
 	IOSurfaceRef buffer[2];
 	CGFloat bufferScale[2];
 	CGLContextObj context;
-
-	EGLDisplay eglDisplay;
-	EGLContext eglContext;
-	EGLSurface eglSurface;
-	EGLConfig eglConfig;
 
 	GLuint tex[2];
 	GLuint fbo[2];
@@ -99,6 +128,13 @@ typedef struct {
 	int stencilDepth;
 
 	int multisamples;
+
+	bool useEGL;
+	bool useGLES;
+
+	bool (*makeCurrent)(JNIEnv*, struct AWTContext*, bool attach);
+	int (*setSwapInterval)(JNIEnv *env, struct AWTContext *ctx, int interval);
+	void (*swapBuffers)(JNIEnv*, struct AWTContext*);
 } AWTContext;
 
 void rlawtThrow(JNIEnv *env, const char *msg);
@@ -109,5 +145,5 @@ bool rlawtContextState(JNIEnv *env, AWTContext *context, bool created);
 
 void rlawtContextFreePlatform(JNIEnv *env, AWTContext *ctx);
 
-void rlawtEglInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow);
-void rlawtEglDestroy(JNIEnv *env, AWTContext *ctx);
+bool rlawtEGLInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow);
+void rlawtEGLDestroy(JNIEnv *env, AWTContext *ctx);

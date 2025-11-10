@@ -138,6 +138,18 @@ public final class AWTContext
 	public native void configureMultisamples(int samples);
 
 	/**
+	 * Sets if EGL should be used, or if the platform-native (WGL/CGL/GLX)
+	 * interface should be used.
+	 */
+	public native void useEGL(boolean egl, long eglGetProcAddress);
+
+	/**
+	 * Sets if OpenGL ES should be used, or "desktop" OpenGL should be used.
+	 * GLES is only available if EGL is used.
+	 */
+	public native void useGLES(boolean es);
+
+	/**
 	 * Gets the name of the active front or back framebuffer object.
 	 */
 	public native int getFramebuffer(boolean front);
@@ -158,8 +170,6 @@ public final class AWTContext
 	 * context.
 	 */
 	public native void createGLContext();
-
-	public native void createGLESContext();
 
 	public native int setSwapInterval(int interval);
 
