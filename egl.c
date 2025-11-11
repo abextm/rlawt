@@ -31,7 +31,7 @@ static void rlawtEGLSwapBuffers(JNIEnv *env, AWTContext *ctx) {
 bool rlawtEGLInit(JNIEnv *env, AWTContext *ctx, EGLNativeWindowType nativeWindow) {
 	if (!ctx->egl.eglBindAPI(ctx->useGLES ? EGL_OPENGL_ES_API : EGL_OPENGL_API)) {
 		rlawtThrow(env, "eglBindAPI failed");
-		return false;
+		goto freeDisplay;
 	}
 
 	if (!ctx->egl.eglInitialize(ctx->eglDisplay, NULL, NULL)) {
@@ -95,6 +95,10 @@ freeDisplay:
 }
 
 void rlawtEGLDestroy(JNIEnv *env, AWTContext *ctx) {
+	if (!ctx->contextCreated) {
+		return;
+	}
+
 	if (!ctx->egl.eglMakeCurrent(ctx->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT)) {
 		rlawtThrow(env, "eglMakeCurrent failed");
 	}
