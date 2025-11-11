@@ -287,13 +287,9 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 			layer.needsDisplayOnBoundsChange = false;
 			layer.magnificationFilter = kCAFilterNearest;
 			layer.contentsGravity = kCAGravityCenter;
-			//layer.contentsScale = 2.0f;
-		//	layer.affineTransform = CGAffineTransformMakeScale(1, -1);
+			layer.contentsScale = dspi.windowLayer.contentsScale;
 
-			// ctx->layer = layer;
-			// dspi.layer = layer;
-
-			// // must be after we give jawt the layer so our frame fix works
+			// must be before eglCreateWindowSurface()
 			layer.frame = CGRectMake(
 				dsi->bounds.x + ctx->offsetX,
 				dspi.windowLayer.bounds.size.height - (dsi->bounds.y + ctx->offsetY) - dsi->bounds.height, // as per AWTSurfaceLayers::setBounds
