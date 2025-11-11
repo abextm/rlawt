@@ -29,6 +29,7 @@
 #include <jawt_md.h>
 #include <string.h>
 #include <EGL/eglext.h>
+#include <EGL/eglext_angle.h>
 
 static XErrorEvent lastError = {0};
 static int rlawtXErrorHandler(Display *display, XErrorEvent *event) {
@@ -216,7 +217,16 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	}
 
 	if (ctx->useEGL) {
-		ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, ctx->dpy, NULL);
+		const char *extensions = ctx->egl.eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+		if (strstr(extensions, "EGL_ANGLE_x11_visual")) {
+			EGLAttrib attribs[] = {
+				EGL_X11_VISUAL_ID_ANGLE, dspi->visualID,
+				EGL_NONE
+			};
+			ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, ctx->dpy, attribs);
+		} else {
+			ctx->eglDisplay = ctx->egl.eglGetPlatformDisplay(EGL_PLATFORM_X11_KHR, ctx->dpy, NULL);
+		}
 		if (ctx->eglDisplay == EGL_NO_DISPLAY) {
 			rlawtThrow(env, "eglGetDisplay failed");
 			goto freeDisplay;
