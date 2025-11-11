@@ -73,6 +73,44 @@ static void rlawtWGLSwapBuffers(JNIEnv *env, AWTContext *ctx) {
 	}
 }
 
+static HGLRC createContext(HDC hdc) {
+	HGLRC base = wglCreateContext(hdc);
+	if (!base) {
+		return NULL;
+	}
+
+	if (!wglMakeCurrent(hdc, base)) {
+		wglDeleteContext(base);
+		return NULL;
+	}
+
+	PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
+	if (wglCreateContextAttribsARB) {
+		// The default values for WGL_CONTEXT_MAJOR_VERSION_ARB and WGL_CONTEXT_MINOR_VERSION_ARB are 1 and 0 respectively. In this case,
+		// implementations will typically return the most recent version of OpenGL they support which is backwards compatible with OpenGL 1.0.
+		const int attribs[] = {
+			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+			0
+		};
+		HGLRC gl = wglCreateContextAttribsARB(hdc, 0, attribs);
+		if (!gl) {
+			wglDeleteContext(base);
+			return NULL;
+		}
+
+		if (!wglMakeCurrent(hdc, gl)) {
+			wglDeleteContext(base);
+			wglDeleteContext(gl);
+			return NULL;
+		}
+
+		wglDeleteContext(base);
+		return gl;
+	} else {
+		return base;
+	}
+}
+
 static bool rlawtWGLInit(JNIEnv *env, AWTContext *ctx) {
 	PIXELFORMATDESCRIPTOR pfd = {0};
 	pfd.nSize = sizeof(pfd);
@@ -102,14 +140,10 @@ static bool rlawtWGLInit(JNIEnv *env, AWTContext *ctx) {
 		goto unlock;
 	}
 
-	ctx->context = wglCreateContext(ctx->dspi->hdc);
+	ctx->context = createContext(ctx->dspi->hdc);
 	if (!ctx->context) {
 		rlawtThrow(env, "unable to create context");
 		goto unlock;
-	}
-
-	if (!rlawtWGLMakeCurrent(env, ctx, true)) {
-		goto freeContext;
 	}
 
 	ctx->makeCurrent = rlawtWGLMakeCurrent;
