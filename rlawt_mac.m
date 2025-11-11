@@ -301,8 +301,9 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 			goto freeDSI;
 		}
 
+		ctx->layer = layer;
+
 		dispatch_sync(dispatch_get_main_queue(), ^{
-			ctx->layer = layer;
 			dspi.layer = layer;
 		});
 	} else {
