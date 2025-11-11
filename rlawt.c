@@ -147,6 +147,8 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_configureMultisamples(
 	ctx->multisamples = samples;
 }
 
+static PFNEGLGETPROCADDRESSPROC eglGetProcAddress = NULL;
+
 JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_useEGL(JNIEnv *env, jobject self, jboolean egl, jlong eglGetProcAddressJ) {
 	AWTContext *ctx = rlawtGetContext(env, self);
 	if (!ctx || !rlawtContextState(env, ctx, false)) {
@@ -154,7 +156,9 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_useEGL(JNIEnv *env, jo
 	}
 
 	if (egl && !ctx->useEGL) {
-		PFNEGLGETPROCADDRESSPROC eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) eglGetProcAddressJ;// TODO: do we want to pass this in from lwjgl EGL
+		if (eglGetProcAddressJ != 0) {
+			eglGetProcAddress = (PFNEGLGETPROCADDRESSPROC) eglGetProcAddressJ;
+		}
 		if (!eglGetProcAddress) {
 #ifdef _WIN32
 			HINSTANCE eglHandle = LoadLibraryA("EGL");
