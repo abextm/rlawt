@@ -154,23 +154,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto freeDisplay;
 	}
 
-	const char *extensions = glXQueryExtensionsString(ctx->dpy, screen);
-
-	PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribsARB = NULL;
-	if (strstr(extensions, "GLX_ARB_create_context")) {
-		glXCreateContextAttribsARB = (PFNGLXCREATECONTEXTATTRIBSARBPROC) glXGetProcAddressARB("glXCreateContextAttribsARB");
-	}
-
-	if (glXCreateContextAttribsARB) {
-		int attribs[] = {
-			GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-			GLX_CONTEXT_MINOR_VERSION_ARB, 3,
-			0
-		};
-		ctx->context = glXCreateContextAttribsARB(ctx->dpy, fbConfig, NULL, true, attribs);
-	} else {
-		ctx->context = glXCreateNewContext(ctx->dpy, fbConfig, GLX_RGBA_TYPE, NULL, true);
-	}
+	ctx->context = glXCreateNewContext(ctx->dpy, fbConfig, GLX_RGBA_TYPE, NULL, true);
 
 	if (!ctx->context) {
 		rlawtThrow(env, "unable to create glx context");
@@ -181,6 +165,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 		goto freeContext;
 	}
 
+	const char *extensions = glXQueryExtensionsString(ctx->dpy, screen);
 	if (strstr(extensions, "GLX_EXT_swap_control")) {
 		ctx->glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress("glXSwapIntervalEXT");
 		ctx->glxSwapControlTear = !!strstr(extensions, "GLX_EXT_swap_control_tear");
@@ -189,7 +174,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	}
 
 	ctx->ds->FreeDrawingSurfaceInfo(dsi);
-
+	
 	XSync(ctx->dpy, false);
 	XSetErrorHandler(oldErrorHandler);
 	ctx->ds->Unlock(ctx->ds);
