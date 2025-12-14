@@ -162,12 +162,7 @@ JNIEXPORT void JNICALL Java_net_runelite_rlawt_AWTContext_createGLContext(JNIEnv
 	}
 
 	if (glXCreateContextAttribsARB) {
-		int attribs[] = {
-			GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-			GLX_CONTEXT_MINOR_VERSION_ARB, 3,
-			0
-		};
-		ctx->context = glXCreateContextAttribsARB(ctx->dpy, fbConfig, NULL, true, attribs);
+		ctx->context = glXCreateContextAttribsARB(ctx->dpy, fbConfig, NULL, true, NULL);
 	} else {
 		ctx->context = glXCreateNewContext(ctx->dpy, fbConfig, GLX_RGBA_TYPE, NULL, true);
 	}
